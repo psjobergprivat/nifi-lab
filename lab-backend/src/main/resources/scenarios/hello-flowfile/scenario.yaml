@@ -1,0 +1,61 @@
+id: hello-flowfile
+order: 1
+title: Hello FlowFile
+summary: >
+  Send a message into NiFi and follow it through a minimal pipeline: it is received over HTTP,
+  gets extra attributes, has its content transformed and is delivered back to the lab.
+learn:
+  - A FlowFile is content (the bytes) plus attributes (key/value metadata)
+  - Processors do the work; connections queue FlowFiles between them
+  - Relationships (success, failure, ...) decide where a FlowFile goes next
+  - Expression Language reads and computes attributes, e.g. ${fileSize}
+
+input:
+  type: text
+  port: 9101
+  path: hello
+  contentType: text/plain; charset=UTF-8
+  placeholder: Type a message for NiFi...
+
+samples:
+  - name: Greeting
+    content: hello nifi, nice to meet you
+  - name: Multi-line
+    content: |
+      first line
+      second line
+      third line
+  - name: JSON
+    content: '{"customer": "ACME", "amount": 42}'
+
+lanes:
+  - id: output
+    title: Output
+    description: Everything the flow delivers back to the lab
+
+steps:
+  - title: Receive
+    component: Receive message
+    text: >
+      ListenHTTP listens on port 9101. Each HTTP request becomes a FlowFile: the body becomes its content,
+      and the lab.* request headers become attributes (lab.trace.id lets the lab follow your message).
+  - title: Add attributes
+    component: Add attributes
+    text: >
+      UpdateAttribute adds metadata without touching the content. It uses Expression Language to record
+      when the message was received and how big it is.
+  - title: Transform content
+    component: Transform content
+    text: >
+      ReplaceText rewrites the content: the whole text is captured by a regex and written back in upper
+      case inside a greeting. The attributes are unchanged.
+  - title: Collect attributes
+    component: Collect attributes
+    text: >
+      AttributesToJSON packs all attributes into one attribute (JSONAttributes) so they can travel with
+      the content to the lab.
+  - title: Deliver
+    component: Deliver to lab
+    text: >
+      InvokeHTTP POSTs the content to the URL in the lab.sink.url attribute. Open its queue in NiFi
+      while the flow is stopped to see FlowFiles waiting in a connection.

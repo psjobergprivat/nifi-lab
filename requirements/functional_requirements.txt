@@ -1,0 +1,93 @@
+This project is about visually showcasing the functionality of Apache Nifi:
+
+* Focus is not performance, it is about making functionality and user scenarios clearly understandable for humans
+* Interactive Web UI making the functionality clear
+* Exposing Admin UI for behind the scenes insights
+
+Scenarios / functionality to showcase
+=====================================
+
+Each scenario should be triggerable from the Web UI, show its result visually there, and point the user
+to the relevant place in the NiFi Admin UI (process group, queue, provenance, bulletin) to see what happened
+behind the scenes. Scenarios are ordered roughly from basic to advanced.
+
+1. Hello FlowFile (ingest -> process -> output)
+   * User submits a message/file in the Web UI; it flows through a minimal pipeline and the result is shown.
+   * Illustrates: FlowFiles (content + attributes), processors, connections, queues.
+   * Web UI shows: the FlowFile's attributes and content at each step.
+
+2. Content-based routing
+   * User submits e.g. orders with different country/priority/amount; they are routed to different outputs.
+   * Illustrates: RouteOnAttribute, RouteOnContent / QueryRecord, relationships (matched/unmatched).
+   * Web UI shows: live "lanes" or buckets where each record lands, with the rule that sent it there.
+
+3. Format conversion and transformation
+   * Convert CSV -> JSON (and e.g. JSON -> Avro/XML), rename/drop fields, compute derived fields.
+   * Illustrates: Record readers/writers, schemas, ConvertRecord, UpdateRecord, JoltTransformJSON.
+   * Web UI shows: side-by-side input and output.
+
+4. Split and merge
+   * A large batch file is split into individual records, processed, and merged back into batches
+     (by count, size or time window).
+   * Illustrates: SplitRecord/SplitText, MergeRecord/MergeContent, fragment attributes, bin strategies.
+   * Web UI shows: one file fanning out into many and being regrouped.
+
+5. Enrichment / lookup
+   * Incoming events are enriched with data from a lookup source (e.g. customer id -> customer name).
+   * Illustrates: LookupRecord, controller services, InvokeHTTP against a mock service.
+   * Web UI shows: record before and after enrichment; user can edit the lookup data and see the effect.
+
+6. Error handling and retry
+   * User can inject malformed data or make a downstream service fail/slow.
+   * Illustrates: failure relationships, retry, penalization, yield, dead-letter queue, bulletins.
+   * Web UI shows: failed items, retry count, and a way to fix and replay them.
+
+7. Back pressure and flow control
+   * User controls the input rate and the speed of a slow consumer (e.g. sliders).
+   * Illustrates: queue thresholds (object count / data size), back pressure propagating upstream,
+     prioritizers (FIFO, priority attribute), FlowFile expiration.
+   * Web UI shows: queue fill levels in real time and when/where back pressure kicks in.
+
+8. Data provenance and lineage
+   * User picks any output item and asks "where did this come from?".
+   * Illustrates: provenance events (RECEIVE, ROUTE, FORK, JOIN, SEND, DROP), lineage graph, content replay.
+   * Web UI shows: a timeline/graph of the item's journey, with link to the NiFi provenance view.
+
+9. Scheduling and triggers
+   * Compare timer-driven, cron-driven and event-driven ingestion (e.g. polling a directory vs. receiving HTTP).
+   * Illustrates: GenerateFlowFile, ListFile/FetchFile, ListenHTTP/HandleHttpRequest, run schedules.
+   * Web UI shows: when each flow fires and what it picked up.
+
+10. External system integration
+    * Move data between realistic sources/sinks: HTTP API, file system, database, message broker (e.g. Kafka).
+    * Illustrates: ConsumeKafka/PublishKafka, PutDatabaseRecord/QueryDatabaseTable, incremental fetch (state).
+    * Web UI shows: data appearing in the target system and processor state (e.g. last seen id).
+
+11. Stateful processing and deduplication
+    * User sends duplicate events; only unique ones pass through.
+    * Illustrates: DetectDuplicate, distributed map cache, processor state management.
+    * Web UI shows: which items were dropped as duplicates and why.
+
+12. Parameters and environments
+    * Same flow running with different parameter contexts (e.g. "dev" vs "prod" thresholds/endpoints).
+    * Illustrates: parameter contexts, sensitive parameters, Expression Language.
+    * Web UI shows: changing a parameter and the resulting change in behaviour without editing the flow.
+
+13. Flow versioning and change management (optional/advanced)
+    * Modify a flow, commit a new version, roll back.
+    * Illustrates: NiFi Registry, versioned process groups, local changes.
+    * Web UI shows: version history and diff between versions.
+
+14. Security and multi-tenancy (optional/advanced)
+    * Different users see/control different process groups.
+    * Illustrates: users, policies, process-group level access control.
+
+Cross-cutting functionality for the Web UI
+------------------------------------------
+* Scenario catalogue: list of scenarios with short description, "what you will learn" and a start/reset button.
+* Guided mode: step-by-step explanation of what is happening, with deep links into the NiFi Admin UI.
+* Live view: auto-refreshing status of queues, processor stats and bulletins for the active scenario
+  (via the NiFi REST API).
+* Reset: every scenario can be reset to a clean, known state (flow stopped, queues emptied, test data restored).
+* Sample data: each scenario ships with ready-made sample data plus the option to enter custom input.
+* Self-contained: all scenarios, including external systems, start with a single command (e.g. Docker Compose).

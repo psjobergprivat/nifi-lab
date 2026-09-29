@@ -1,0 +1,3 @@
+# Scenarios shown in the lab, by folder name. Each folder holds scenario.yaml and flow.json.
+scenarios:
+  - hello-flowfile

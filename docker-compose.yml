@@ -1,0 +1,53 @@
+# NiFi Lab - the whole lab with one command:   docker compose up --build   (or: podman compose up --build)
+# Then open http://localhost:8080 (lab) and https://localhost:8443/nifi (NiFi, user "nifilab" / "nifilabpassword").
+#
+# Dev mode: start only NiFi (docker compose up nifi) and run the backend on the host with ./mvnw quarkus:dev.
+name: nifi-lab
+
+services:
+  nifi:
+    image: docker.io/apache/nifi:2.12.0
+    hostname: nifi
+    ports:
+      - "8443:8443"   # NiFi UI / REST API
+      - "9101:9101"   # scenario 01 ListenHTTP (needed only when the backend runs on the host)
+    environment:
+      SINGLE_USER_CREDENTIALS_USERNAME: ${NIFI_USERNAME:-nifilab}
+      SINGLE_USER_CREDENTIALS_PASSWORD: ${NIFI_PASSWORD:-nifilabpassword}
+      # Host headers NiFi accepts: the browser (localhost) and the backend (nifi).
+      NIFI_WEB_PROXY_HOST: localhost:8443,nifi:8443
+      NIFI_JVM_HEAP_INIT: 1g
+      NIFI_JVM_HEAP_MAX: 2g
+    extra_hosts:
+      # lets flows call back to a backend running on the host in dev mode
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - nifi-conf:/opt/nifi/nifi-current/conf
+      - nifi-state:/opt/nifi/nifi-current/state
+      - nifi-flowfiles:/opt/nifi/nifi-current/flowfile_repository
+      - nifi-content:/opt/nifi/nifi-current/content_repository
+      - nifi-provenance:/opt/nifi/nifi-current/provenance_repository
+
+  lab-backend:
+    build:
+      context: .
+      dockerfile: lab-backend/Dockerfile
+    image: localhost/nifi-lab/lab-backend:latest
+    ports:
+      - "8080:8080"
+    environment:
+      LAB_NIFI_URL: https://nifi:8443
+      LAB_NIFI_UI_URL: https://localhost:8443
+      LAB_NIFI_USERNAME: ${NIFI_USERNAME:-nifilab}
+      LAB_NIFI_PASSWORD: ${NIFI_PASSWORD:-nifilabpassword}
+      LAB_NIFI_LISTEN_HOST: nifi
+      LAB_SINK_BASE_URL: http://lab-backend:8080
+    depends_on:
+      - nifi
+
+volumes:
+  nifi-conf:
+  nifi-state:
+  nifi-flowfiles:
+  nifi-content:
+  nifi-provenance:
