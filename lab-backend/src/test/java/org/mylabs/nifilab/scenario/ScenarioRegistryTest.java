@@ -46,6 +46,12 @@ class ScenarioRegistryTest {
                 }
             }
 
+            for (ScenarioDefinition.ExpectedBulletin expected : s.expectedBulletins()) {
+                assertTrue(names.contains(expected.component()),
+                        "expected bulletin refers to unknown component '" + expected.component() + "'");
+                assertFalse(expected.contains() == null || expected.contains().isBlank(), "expected bulletin needs 'contains'");
+            }
+
             // Lanes set with a literal value (e.g. "Lane = paid") must be declared in scenario.yaml.
             Set<String> lanes = new HashSet<>();
             s.lanes().forEach(l -> lanes.add(l.id()));

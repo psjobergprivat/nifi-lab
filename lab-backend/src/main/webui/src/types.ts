@@ -59,6 +59,13 @@ export interface Control {
   defaultValue: string | null;
 }
 
+/** A bulletin the scenario causes on purpose; matched by component name and message text. */
+export interface ExpectedBulletin {
+  component: string;
+  contains: string;
+  explanation: string;
+}
+
 export interface ScenarioDetail extends ScenarioSummary {
   input: Input;
   samples: Sample[];
@@ -66,6 +73,7 @@ export interface ScenarioDetail extends ScenarioSummary {
   steps: Step[];
   controls: Control[];
   controlValues: Record<string, string>;
+  expectedBulletins: ExpectedBulletin[];
   links: { provenance: string; bulletins: string };
 }
 

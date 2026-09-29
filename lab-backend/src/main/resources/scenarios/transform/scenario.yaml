@@ -69,3 +69,10 @@ steps:
   - title: Deliver
     component: Deliver to lab
     text: Each result goes to its own lane. Try the broken CSV - "lots" is not a number.
+
+expectedBulletins:
+  - component: Query records
+    contains: Unable to query
+    explanation: >
+      Expected - the "Broken CSV" sample has "lots" where a number should be. QueryRecord routes the whole
+      file to "failure", and it ends up in the Failure lane.

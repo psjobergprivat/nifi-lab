@@ -1,6 +1,17 @@
-import type { Bulletin } from '../types';
+import type { Bulletin, ExpectedBulletin } from '../types';
 
-export function BulletinFeed({ bulletins, bulletinsLink }: { bulletins: Bulletin[]; bulletinsLink: string }) {
+interface Props {
+  bulletins: Bulletin[];
+  expected: ExpectedBulletin[];
+  bulletinsLink: string;
+}
+
+function explain(bulletin: Bulletin, expected: ExpectedBulletin[]): ExpectedBulletin | undefined {
+  return expected.find((e) => e.component === bulletin.sourceName && bulletin.message.includes(e.contains));
+}
+
+export function BulletinFeed({ bulletins, expected, bulletinsLink }: Props) {
+  const unexpected = bulletins.filter((b) => !explain(b, expected)).length;
   return (
     <div className="panel">
       <div className="panel-head">
@@ -12,17 +23,30 @@ export function BulletinFeed({ bulletins, bulletinsLink }: { bulletins: Bulletin
       {bulletins.length === 0 ? (
         <div className="empty small">No warnings or errors. NiFi posts a bulletin when a processor fails.</div>
       ) : (
-        <ul className="bulletins">
-          {bulletins.map((b) => (
-            <li key={b.id} className={`bulletin ${b.level.toLowerCase()}`}>
-              <div>
-                <strong>{b.sourceName}</strong> <span className="muted small">{b.timestamp}</span>
-                <span className={`badge small ${b.level === 'ERROR' ? 'error' : 'warn'}`}>{b.level}</span>
-              </div>
-              <p>{b.message}</p>
-            </li>
-          ))}
-        </ul>
+        <>
+          {unexpected === 0 && (
+            <p className="muted small">All bulletins below are caused on purpose by this scenario - nothing is wrong.</p>
+          )}
+          <ul className="bulletins">
+            {bulletins.map((b) => {
+              const expectation = explain(b, expected);
+              return (
+                <li key={b.id} className={`bulletin ${expectation ? 'expected' : b.level.toLowerCase()}`}>
+                  <div>
+                    <strong>{b.sourceName}</strong> <span className="muted small">{b.timestamp}</span>
+                    {expectation ? (
+                      <span className="badge small info">Expected</span>
+                    ) : (
+                      <span className={`badge small ${b.level === 'ERROR' ? 'error' : 'warn'}`}>{b.level}</span>
+                    )}
+                  </div>
+                  {expectation && <p className="bulletin-explanation">{expectation.explanation}</p>}
+                  <p className={expectation ? 'muted' : undefined}>{b.message}</p>
+                </li>
+              );
+            })}
+          </ul>
+        </>
       )}
     </div>
   );

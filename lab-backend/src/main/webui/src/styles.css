@@ -881,3 +881,19 @@ textarea:focus {
   margin-top: -0.5rem;
   z-index: 1;
 }
+
+/* Bulletins a scenario causes on purpose: calm, with an explanation instead of an alarm. */
+.badge.info {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.bulletin.expected {
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.bulletin .bulletin-explanation {
+  color: var(--text);
+  font-size: 0.85rem;
+}

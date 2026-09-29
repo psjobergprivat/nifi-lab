@@ -44,6 +44,7 @@ public class ScenarioResource {
                                  ScenarioDefinition.Input input, List<ScenarioDefinition.Sample> samples,
                                  List<ScenarioDefinition.Lane> lanes, List<StepView> steps,
                                  List<ScenarioDefinition.Control> controls, Map<String, String> controlValues,
+                                 List<ScenarioDefinition.ExpectedBulletin> expectedBulletins,
                                  DeploymentView deployment, Map<String, String> links) {
     }
 
@@ -85,7 +86,7 @@ public class ScenarioResource {
                                 : d.component(step.component()).map(n -> links.component(d.groupId(), n)).orElse(null)))
                 .toList();
         return new ScenarioDetail(s.id(), s.order(), s.title(), s.summary(), s.learn(), s.input(), s.samples(),
-                s.lanes(), steps, s.controls(), controlStore.values(id), view(d),
+                s.lanes(), steps, s.controls(), controlStore.values(id), s.expectedBulletins(), view(d),
                 Map.of("provenance", links.provenance(), "bulletins", links.bulletins()));
     }
 

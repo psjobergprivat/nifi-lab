@@ -92,3 +92,10 @@ steps:
   - title: Deliver
     component: Deliver to lab
     text: Every outcome ends up in a lane, so nothing is silently lost.
+
+expectedBulletins:
+  - component: Call payment service
+    contains: SocketTimeoutException
+    explanation: >
+      Expected when the service latency is above 3000 ms - NiFi gives up waiting (Socket Read Timeout) and
+      retries the call. After 3 retries the payment goes to the Dead letter lane.

@@ -28,6 +28,10 @@ docker compose up --build        # or: podman compose up --build
 - Lab: http://localhost:8080
 - NiFi: https://localhost:8443/nifi (self-signed certificate; log in as `nifilab` / `nifilabpassword`)
 
+With podman-compose 1.0.x, rebuild with `podman compose down && podman compose up -d --build`, because
+`up --build` builds the new image but keeps running the old container. NiFi's data is kept either way (named
+volumes).
+
 NiFi takes about 15–60 seconds to start. The lab shows "Waiting for NiFi" until then, and deploys the scenario
 flows by itself once NiFi is up.
 

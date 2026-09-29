@@ -150,7 +150,7 @@ export function ScenarioView({ scenarioId }: { scenarioId: string }) {
             <p className="hint">Click a processor or connection to open it in NiFi. Numbers are NiFi's 5-minute counters.</p>
           </div>
           {scenario.controls.some((c) => c.id.startsWith('service.')) && <ServiceCallsPanel calls={live.serviceCalls} />}
-          <BulletinFeed bulletins={live.bulletins} bulletinsLink={scenario.links.bulletins} />
+          <BulletinFeed bulletins={live.bulletins} expected={scenario.expectedBulletins} bulletinsLink={scenario.links.bulletins} />
         </section>
         <section className="col">
           <OutputLanes lanes={scenario.lanes} items={live.items} onTrace={setTracing} onResend={resend} />

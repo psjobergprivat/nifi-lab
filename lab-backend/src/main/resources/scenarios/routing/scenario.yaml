@@ -70,3 +70,10 @@ steps:
   - title: Deliver
     component: Deliver to lab
     text: The result is posted back to the lab, into the lane named by the lab.lane attribute.
+
+expectedBulletins:
+  - component: Extract order fields
+    contains: did not have valid JSON content
+    explanation: >
+      Expected - the "Not JSON" sample is broken on purpose. EvaluateJsonPath routes it to "failure", and it
+      ends up in the Invalid lane instead of being lost.
