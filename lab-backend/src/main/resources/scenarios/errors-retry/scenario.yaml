@@ -1,0 +1,94 @@
+id: errors-retry
+order: 6
+title: Error handling and retry
+summary: >
+  Each payment is sent to a payment service that you control. Make it slow, flaky or down and watch NiFi retry,
+  give up, and route failures to a dead-letter lane you can replay from.
+learn:
+  - InvokeHTTP routes by outcome - Response (2xx), Retry (5xx), No Retry (4xx), Failure (no answer)
+  - Built-in retry - a relationship can be retried a number of times before the FlowFile is routed to it
+  - Penalties delay a FlowFile before it is tried again
+  - A dead-letter lane keeps failed data so it can be fixed and replayed
+
+input:
+  type: text
+  port: 9106
+  path: payments
+  contentType: application/json
+  placeholder: '{"paymentId": "p-1", "amount": 100}'
+
+samples:
+  - name: Payment
+    content: '{"paymentId": "p-100", "amount": 100, "currency": "EUR"}'
+  - name: Large payment
+    content: '{"paymentId": "p-101", "amount": 25000, "currency": "EUR"}'
+  - name: Invalid payment
+    content: '{"paymentId": "p-102", "amount": -5, "note": "invalid"}'
+
+controls:
+  - id: service.mode
+    type: select
+    label: Payment service
+    description: normal, down (every call answers 503) or reject-all (every call answers 400)
+    options: [normal, down, reject-all]
+    defaultValue: normal
+  - id: service.failure-rate
+    type: slider
+    label: Random failures
+    description: Share of calls answered with 503 Service Unavailable
+    min: 0
+    max: 100
+    step: 10
+    unit: '%'
+    defaultValue: '0'
+  - id: service.latency-ms
+    type: slider
+    label: Service latency
+    description: NiFi gives up waiting after 3 seconds (Socket Read Timeout)
+    min: 0
+    max: 5000
+    step: 250
+    unit: ms
+    defaultValue: '0'
+
+lanes:
+  - id: paid
+    title: Paid
+    description: the service answered 2xx (the body shows which attempt succeeded)
+  - id: rejected
+    title: Rejected
+    description: the service answered 4xx - retrying would not help
+  - id: dead-letter
+    title: Dead letter
+    description: still failing after 3 retries - fix the cause and use "Send again"
+
+steps:
+  - title: Receive
+    component: Receive payment
+    text: Each payment is one FlowFile.
+  - title: Call the service
+    component: Call payment service
+    text: >
+      InvokeHTTP POSTs the payment to the service (the lab's mock). Retry and Failure are configured as
+      "retried relationships" with 3 retries: on a 503 or a timeout the FlowFile is penalized (2 s, growing)
+      and tried again. Watch the Service calls panel count the attempts.
+  - title: Success
+    component: Lane = paid
+    text: Response (2xx) carries the service's answer. With a 30% failure rate most payments still get paid - some on attempt 2 or 3.
+  - title: Client error
+    component: Lane = rejected
+    text: No Retry (4xx) is not retried - the request itself is wrong. Try the invalid payment, or mode reject-all.
+  - title: Too slow is also a failure
+    component: Call payment service
+    text: >
+      Set the latency to 4000 ms. NiFi stops waiting after 3 s and retries - but the Service calls panel shows
+      the service answered 200 every time: it did the work, just too late. Retrying calls that may have
+      succeeded can create duplicates, which is why services that NiFi retries should be idempotent.
+  - title: Dead letter
+    component: Lane = dead-letter
+    text: >
+      When all retries fail, the FlowFile is routed to Retry/Failure, which lead here. Set the service to down,
+      send a payment, then set it back to normal and use "Send again" on the dead-letter item.
+  - title: Deliver
+    component: Deliver to lab
+    text: Every outcome ends up in a lane, so nothing is silently lost.

@@ -3,6 +3,10 @@ import { api } from '../api';
 import type { FlowView, ScenarioDetail } from '../types';
 import { useLive } from '../useLive';
 import { BulletinFeed } from './BulletinFeed';
+import { ControlsPanel } from './ControlsPanel';
+import { LineageModal } from './LineageModal';
+import { ProducerPanel } from './ProducerPanel';
+import { ServiceCallsPanel } from './ServiceCallsPanel';
 import { FlowDiagram } from './FlowDiagram';
 import { InputPanel } from './InputPanel';
 import { OutputLanes } from './OutputLanes';
@@ -15,6 +19,7 @@ export function ScenarioView({ scenarioId }: { scenarioId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [live, clearLive] = useLive(scenarioId);
+  const [tracing, setTracing] = useState<string | null>(null);
 
   const deployed = scenario?.deployment.state === 'DEPLOYED';
   const running = deployed && scenario?.deployment.runState === 'RUNNING';
@@ -52,6 +57,11 @@ export function ScenarioView({ scenarioId }: { scenarioId: string }) {
     } finally {
       setBusy(false);
     }
+  };
+
+  const resend = (content: string) => {
+    setError(null);
+    api.sendInput(scenarioId, content).catch((e: Error) => setError(e.message));
   };
 
   if (!scenario) {
@@ -117,6 +127,15 @@ export function ScenarioView({ scenarioId }: { scenarioId: string }) {
       <div className="scenario-grid">
         <aside className="col">
           <InputPanel scenario={scenario} running={!!running} inputs={live.inputs} onError={setError} />
+          {scenario.controls.length > 0 && (
+            <ControlsPanel
+              scenarioId={scenarioId}
+              controls={scenario.controls}
+              values={live.controlValues ?? scenario.controlValues}
+              onError={setError}
+            />
+          )}
+          {scenario.controls.some((c) => c.id === 'producer.rate') && <ProducerPanel stats={live.producer} />}
           <StepsPanel steps={scenario.steps} learn={scenario.learn} />
         </aside>
         <section className="col">
@@ -130,12 +149,14 @@ export function ScenarioView({ scenarioId }: { scenarioId: string }) {
             {flow ? <FlowDiagram flow={flow} status={live.status} /> : <div className="empty">The flow appears here once it is deployed.</div>}
             <p className="hint">Click a processor or connection to open it in NiFi. Numbers are NiFi's 5-minute counters.</p>
           </div>
+          {scenario.controls.some((c) => c.id.startsWith('service.')) && <ServiceCallsPanel calls={live.serviceCalls} />}
           <BulletinFeed bulletins={live.bulletins} bulletinsLink={scenario.links.bulletins} />
         </section>
         <section className="col">
-          <OutputLanes lanes={scenario.lanes} items={live.items} />
+          <OutputLanes lanes={scenario.lanes} items={live.items} onTrace={setTracing} onResend={resend} />
         </section>
       </div>
+      {tracing && <LineageModal flowFileUuid={tracing} onClose={() => setTracing(null)} />}
     </div>
   );
 }

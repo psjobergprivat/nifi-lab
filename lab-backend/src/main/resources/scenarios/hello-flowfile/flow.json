@@ -1,6 +1,6 @@
 {
   "flowContents": {
-    "identifier": "7a1c0f10-0001-4a5b-9c2d-000000000000",
+    "identifier": "4b1c4e7a-3fa5-54e1-a59d-568baf2cd206",
     "name": "Hello FlowFile",
     "comments": "",
     "position": {
@@ -11,7 +11,7 @@
     "remoteProcessGroups": [],
     "processors": [
       {
-        "identifier": "7a1c0f10-0001-4a5b-9c2d-000000000101",
+        "identifier": "52683565-97e0-50d1-9a07-8b99790d8166",
         "name": "Receive message",
         "comments": "",
         "position": {
@@ -47,10 +47,10 @@
         "backoffMechanism": "PENALIZE_FLOWFILE",
         "maxBackoffPeriod": "10 mins",
         "componentType": "PROCESSOR",
-        "groupIdentifier": "7a1c0f10-0001-4a5b-9c2d-000000000000"
+        "groupIdentifier": "4b1c4e7a-3fa5-54e1-a59d-568baf2cd206"
       },
       {
-        "identifier": "7a1c0f10-0001-4a5b-9c2d-000000000102",
+        "identifier": "a49b8026-fb1f-5486-a515-a1b4d4c1bf99",
         "name": "Add attributes",
         "comments": "",
         "position": {
@@ -107,10 +107,10 @@
         "backoffMechanism": "PENALIZE_FLOWFILE",
         "maxBackoffPeriod": "10 mins",
         "componentType": "PROCESSOR",
-        "groupIdentifier": "7a1c0f10-0001-4a5b-9c2d-000000000000"
+        "groupIdentifier": "4b1c4e7a-3fa5-54e1-a59d-568baf2cd206"
       },
       {
-        "identifier": "7a1c0f10-0001-4a5b-9c2d-000000000103",
+        "identifier": "10441710-4cf5-52e3-bb55-9ca1c107ab25",
         "name": "Transform content",
         "comments": "",
         "position": {
@@ -150,10 +150,10 @@
         "backoffMechanism": "PENALIZE_FLOWFILE",
         "maxBackoffPeriod": "10 mins",
         "componentType": "PROCESSOR",
-        "groupIdentifier": "7a1c0f10-0001-4a5b-9c2d-000000000000"
+        "groupIdentifier": "4b1c4e7a-3fa5-54e1-a59d-568baf2cd206"
       },
       {
-        "identifier": "7a1c0f10-0001-4a5b-9c2d-000000000104",
+        "identifier": "a7970640-4fdf-55c2-bea1-8b2f0cb5d4db",
         "name": "Collect attributes",
         "comments": "",
         "position": {
@@ -189,10 +189,10 @@
         "backoffMechanism": "PENALIZE_FLOWFILE",
         "maxBackoffPeriod": "10 mins",
         "componentType": "PROCESSOR",
-        "groupIdentifier": "7a1c0f10-0001-4a5b-9c2d-000000000000"
+        "groupIdentifier": "4b1c4e7a-3fa5-54e1-a59d-568baf2cd206"
       },
       {
-        "identifier": "7a1c0f10-0001-4a5b-9c2d-000000000105",
+        "identifier": "87d4e92b-85f2-5f8a-bcf3-307e92a73792",
         "name": "Deliver to lab",
         "comments": "",
         "position": {
@@ -241,122 +241,26 @@
         "backoffMechanism": "PENALIZE_FLOWFILE",
         "maxBackoffPeriod": "10 mins",
         "componentType": "PROCESSOR",
-        "groupIdentifier": "7a1c0f10-0001-4a5b-9c2d-000000000000"
+        "groupIdentifier": "4b1c4e7a-3fa5-54e1-a59d-568baf2cd206"
       }
     ],
     "inputPorts": [],
     "outputPorts": [],
     "connections": [
       {
-        "identifier": "7a1c0f10-0001-4a5b-9c2d-000000000201",
+        "identifier": "b3342573-b3af-5b43-a31e-c5052d2e0617",
         "name": "",
         "comments": "",
         "source": {
-          "id": "7a1c0f10-0001-4a5b-9c2d-000000000101",
+          "id": "a7970640-4fdf-55c2-bea1-8b2f0cb5d4db",
           "type": "PROCESSOR",
-          "groupId": "7a1c0f10-0001-4a5b-9c2d-000000000000",
-          "name": "Receive message"
-        },
-        "destination": {
-          "id": "7a1c0f10-0001-4a5b-9c2d-000000000102",
-          "type": "PROCESSOR",
-          "groupId": "7a1c0f10-0001-4a5b-9c2d-000000000000",
-          "name": "Add attributes"
-        },
-        "labelIndex": 1,
-        "zIndex": 0,
-        "selectedRelationships": [
-          "success"
-        ],
-        "backPressureObjectThreshold": 10000,
-        "backPressureDataSizeThreshold": "1 GB",
-        "flowFileExpiration": "0 sec",
-        "prioritizers": [],
-        "bends": [],
-        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
-        "partitioningAttribute": "",
-        "loadBalanceCompression": "DO_NOT_COMPRESS",
-        "componentType": "CONNECTION",
-        "groupIdentifier": "7a1c0f10-0001-4a5b-9c2d-000000000000"
-      },
-      {
-        "identifier": "7a1c0f10-0001-4a5b-9c2d-000000000202",
-        "name": "",
-        "comments": "",
-        "source": {
-          "id": "7a1c0f10-0001-4a5b-9c2d-000000000102",
-          "type": "PROCESSOR",
-          "groupId": "7a1c0f10-0001-4a5b-9c2d-000000000000",
-          "name": "Add attributes"
-        },
-        "destination": {
-          "id": "7a1c0f10-0001-4a5b-9c2d-000000000103",
-          "type": "PROCESSOR",
-          "groupId": "7a1c0f10-0001-4a5b-9c2d-000000000000",
-          "name": "Transform content"
-        },
-        "labelIndex": 1,
-        "zIndex": 0,
-        "selectedRelationships": [
-          "success"
-        ],
-        "backPressureObjectThreshold": 10000,
-        "backPressureDataSizeThreshold": "1 GB",
-        "flowFileExpiration": "0 sec",
-        "prioritizers": [],
-        "bends": [],
-        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
-        "partitioningAttribute": "",
-        "loadBalanceCompression": "DO_NOT_COMPRESS",
-        "componentType": "CONNECTION",
-        "groupIdentifier": "7a1c0f10-0001-4a5b-9c2d-000000000000"
-      },
-      {
-        "identifier": "7a1c0f10-0001-4a5b-9c2d-000000000203",
-        "name": "",
-        "comments": "",
-        "source": {
-          "id": "7a1c0f10-0001-4a5b-9c2d-000000000103",
-          "type": "PROCESSOR",
-          "groupId": "7a1c0f10-0001-4a5b-9c2d-000000000000",
-          "name": "Transform content"
-        },
-        "destination": {
-          "id": "7a1c0f10-0001-4a5b-9c2d-000000000104",
-          "type": "PROCESSOR",
-          "groupId": "7a1c0f10-0001-4a5b-9c2d-000000000000",
-          "name": "Collect attributes"
-        },
-        "labelIndex": 1,
-        "zIndex": 0,
-        "selectedRelationships": [
-          "success"
-        ],
-        "backPressureObjectThreshold": 10000,
-        "backPressureDataSizeThreshold": "1 GB",
-        "flowFileExpiration": "0 sec",
-        "prioritizers": [],
-        "bends": [],
-        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
-        "partitioningAttribute": "",
-        "loadBalanceCompression": "DO_NOT_COMPRESS",
-        "componentType": "CONNECTION",
-        "groupIdentifier": "7a1c0f10-0001-4a5b-9c2d-000000000000"
-      },
-      {
-        "identifier": "7a1c0f10-0001-4a5b-9c2d-000000000204",
-        "name": "",
-        "comments": "",
-        "source": {
-          "id": "7a1c0f10-0001-4a5b-9c2d-000000000104",
-          "type": "PROCESSOR",
-          "groupId": "7a1c0f10-0001-4a5b-9c2d-000000000000",
+          "groupId": "4b1c4e7a-3fa5-54e1-a59d-568baf2cd206",
           "name": "Collect attributes"
         },
         "destination": {
-          "id": "7a1c0f10-0001-4a5b-9c2d-000000000105",
+          "id": "87d4e92b-85f2-5f8a-bcf3-307e92a73792",
           "type": "PROCESSOR",
-          "groupId": "7a1c0f10-0001-4a5b-9c2d-000000000000",
+          "groupId": "4b1c4e7a-3fa5-54e1-a59d-568baf2cd206",
           "name": "Deliver to lab"
         },
         "labelIndex": 1,
@@ -373,7 +277,103 @@
         "partitioningAttribute": "",
         "loadBalanceCompression": "DO_NOT_COMPRESS",
         "componentType": "CONNECTION",
-        "groupIdentifier": "7a1c0f10-0001-4a5b-9c2d-000000000000"
+        "groupIdentifier": "4b1c4e7a-3fa5-54e1-a59d-568baf2cd206"
+      },
+      {
+        "identifier": "d877891b-4b28-54d0-9667-cc576003ea6d",
+        "name": "",
+        "comments": "",
+        "source": {
+          "id": "52683565-97e0-50d1-9a07-8b99790d8166",
+          "type": "PROCESSOR",
+          "groupId": "4b1c4e7a-3fa5-54e1-a59d-568baf2cd206",
+          "name": "Receive message"
+        },
+        "destination": {
+          "id": "a49b8026-fb1f-5486-a515-a1b4d4c1bf99",
+          "type": "PROCESSOR",
+          "groupId": "4b1c4e7a-3fa5-54e1-a59d-568baf2cd206",
+          "name": "Add attributes"
+        },
+        "labelIndex": 1,
+        "zIndex": 0,
+        "selectedRelationships": [
+          "success"
+        ],
+        "backPressureObjectThreshold": 10000,
+        "backPressureDataSizeThreshold": "1 GB",
+        "flowFileExpiration": "0 sec",
+        "prioritizers": [],
+        "bends": [],
+        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+        "partitioningAttribute": "",
+        "loadBalanceCompression": "DO_NOT_COMPRESS",
+        "componentType": "CONNECTION",
+        "groupIdentifier": "4b1c4e7a-3fa5-54e1-a59d-568baf2cd206"
+      },
+      {
+        "identifier": "c076799c-23f7-5f38-acf3-2a99f58e8813",
+        "name": "",
+        "comments": "",
+        "source": {
+          "id": "a49b8026-fb1f-5486-a515-a1b4d4c1bf99",
+          "type": "PROCESSOR",
+          "groupId": "4b1c4e7a-3fa5-54e1-a59d-568baf2cd206",
+          "name": "Add attributes"
+        },
+        "destination": {
+          "id": "10441710-4cf5-52e3-bb55-9ca1c107ab25",
+          "type": "PROCESSOR",
+          "groupId": "4b1c4e7a-3fa5-54e1-a59d-568baf2cd206",
+          "name": "Transform content"
+        },
+        "labelIndex": 1,
+        "zIndex": 0,
+        "selectedRelationships": [
+          "success"
+        ],
+        "backPressureObjectThreshold": 10000,
+        "backPressureDataSizeThreshold": "1 GB",
+        "flowFileExpiration": "0 sec",
+        "prioritizers": [],
+        "bends": [],
+        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+        "partitioningAttribute": "",
+        "loadBalanceCompression": "DO_NOT_COMPRESS",
+        "componentType": "CONNECTION",
+        "groupIdentifier": "4b1c4e7a-3fa5-54e1-a59d-568baf2cd206"
+      },
+      {
+        "identifier": "c2881d5c-4a21-5745-9395-70c663cbec1a",
+        "name": "",
+        "comments": "",
+        "source": {
+          "id": "10441710-4cf5-52e3-bb55-9ca1c107ab25",
+          "type": "PROCESSOR",
+          "groupId": "4b1c4e7a-3fa5-54e1-a59d-568baf2cd206",
+          "name": "Transform content"
+        },
+        "destination": {
+          "id": "a7970640-4fdf-55c2-bea1-8b2f0cb5d4db",
+          "type": "PROCESSOR",
+          "groupId": "4b1c4e7a-3fa5-54e1-a59d-568baf2cd206",
+          "name": "Collect attributes"
+        },
+        "labelIndex": 1,
+        "zIndex": 0,
+        "selectedRelationships": [
+          "success"
+        ],
+        "backPressureObjectThreshold": 10000,
+        "backPressureDataSizeThreshold": "1 GB",
+        "flowFileExpiration": "0 sec",
+        "prioritizers": [],
+        "bends": [],
+        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+        "partitioningAttribute": "",
+        "loadBalanceCompression": "DO_NOT_COMPRESS",
+        "componentType": "CONNECTION",
+        "groupIdentifier": "4b1c4e7a-3fa5-54e1-a59d-568baf2cd206"
       }
     ],
     "labels": [],

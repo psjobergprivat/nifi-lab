@@ -1,0 +1,71 @@
+id: back-pressure
+order: 7
+title: Back pressure and flow control
+summary: >
+  A producer sends events faster than a slow consumer can handle them. Watch the queues fill up to their limit,
+  NiFi stop upstream processors, and finally refuse new data - without losing anything it accepted.
+learn:
+  - Every connection is a queue with limits (object count and data size)
+  - When a queue is full, the processor feeding it is not scheduled - back pressure travels upstream
+  - ListenHTTP answers 503 when it cannot pass data on - the producer is told to slow down
+  - Nothing is dropped - data waits in queues until the consumer catches up
+
+input:
+  type: text
+  port: 9107
+  path: events
+  contentType: application/json
+  placeholder: '{"event": "manual"}'
+
+samples:
+  - name: Event
+    content: '{"event": "manual"}'
+
+controls:
+  - id: producer.rate
+    type: slider
+    label: Producer rate
+    description: Events per second the lab sends to ListenHTTP
+    min: 0
+    max: 30
+    step: 1
+    unit: /s
+    defaultValue: '0'
+  - id: service.latency-ms
+    type: slider
+    label: Consumer time per event
+    description: How long the slow consumer takes per event (it handles one at a time)
+    min: 0
+    max: 2000
+    step: 50
+    unit: ms
+    defaultValue: '500'
+
+lanes:
+  - id: processed
+    title: Processed
+    description: events the slow consumer has handled
+
+steps:
+  - title: Receive
+    component: Receive events
+    text: ListenHTTP accepts events as long as its outgoing queue has room.
+  - title: Tag
+    component: Tag event
+    text: A quick step. Its incoming and outgoing connections both have a back pressure threshold of 20 FlowFiles.
+  - title: Slow consumer
+    component: Slow consumer
+    text: >
+      Calls the mock service, one event at a time, taking "Consumer time per event" for each. At 500 ms it
+      manages 2 events/s. Set the producer to 10/s and watch the queue before it turn amber, then red.
+  - title: Back pressure spreads
+    component: Tag event
+    text: >
+      When the queue in front of Slow consumer holds 20 FlowFiles, NiFi stops scheduling Tag event. Its own
+      input then fills to 20 as well, and ListenHTTP starts answering 503 - see "refused" in the Producer panel.
+  - title: Recover
+    component: Lane = processed
+    text: Set the producer to 0 (or the consumer to 0 ms) and watch the queues drain. Every accepted event still arrives.
+  - title: Deliver
+    component: Deliver to lab
+    text: Processed events arrive in the lab in the order they were received.

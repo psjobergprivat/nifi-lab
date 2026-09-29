@@ -1,5 +1,5 @@
 import { useEffect, useReducer } from 'react';
-import type { Bulletin, FlowStatus, LiveEvent, SinkItem } from './types';
+import type { Bulletin, FlowStatus, LiveEvent, ProducerStats, ServiceCall, SinkItem } from './types';
 
 /** Something the user sent, and (once it comes out the other end) how long it took. */
 export interface SentInput {
@@ -16,6 +16,10 @@ export interface LiveState {
   inputs: SentInput[];
   bulletins: Bulletin[];
   nifiError: string | null;
+  /** Latest control values pushed by the backend (null until one changes). */
+  controlValues: Record<string, string> | null;
+  serviceCalls: (ServiceCall & { at: number })[];
+  producer: ProducerStats | null;
   /** Bumped on every deployment event so the view can refetch the scenario. */
   deploymentVersion: number;
 }
@@ -30,6 +34,9 @@ const initial: LiveState = {
   inputs: [],
   bulletins: [],
   nifiError: null,
+  controlValues: null,
+  serviceCalls: [],
+  producer: null,
   deploymentVersion: 0,
 };
 
@@ -64,9 +71,22 @@ function reducer(state: LiveState, action: Action): LiveState {
       return { ...state, bulletins: [bulletin, ...state.bulletins].slice(0, MAX_BULLETINS) };
     }
     case 'reset':
-      return { ...initial, connected: state.connected, deploymentVersion: state.deploymentVersion + 1 };
+      return {
+        ...initial,
+        connected: state.connected,
+        controlValues: state.controlValues,
+        deploymentVersion: state.deploymentVersion + 1,
+      };
     case 'deployment':
       return { ...state, deploymentVersion: state.deploymentVersion + 1 };
+    case 'controls':
+      return { ...state, controlValues: event.data as Record<string, string> };
+    case 'service': {
+      const call = { ...(event.data as ServiceCall), at: event.timestamp };
+      return { ...state, serviceCalls: [call, ...state.serviceCalls].slice(0, MAX_ITEMS) };
+    }
+    case 'producer':
+      return { ...state, producer: event.data as ProducerStats };
     case 'nifi':
       return { ...state, nifiError: (event.data as { message: string }).message };
     default:

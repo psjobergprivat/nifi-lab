@@ -1,9 +1,9 @@
-import type { DeploymentView, FlowView, NifiInfo, ScenarioDetail, ScenarioSummary } from './types';
+import type { DeploymentView, FlowView, LineageView, NifiInfo, ScenarioDetail, ScenarioSummary } from './types';
 
-async function request<T>(method: string, url: string, body?: string): Promise<T> {
+async function request<T>(method: string, url: string, body?: string, contentType = 'text/plain; charset=UTF-8'): Promise<T> {
   const response = await fetch(url, {
     method,
-    headers: body === undefined ? undefined : { 'Content-Type': 'text/plain; charset=UTF-8' },
+    headers: body === undefined ? undefined : { 'Content-Type': contentType },
     body,
   });
   if (!response.ok) {
@@ -29,4 +29,7 @@ export const api = {
   deploy: (id: string) => request<DeploymentView>('POST', `/api/scenarios/${id}/deploy`),
   sendInput: (id: string, content: string) =>
     request<{ traceId: string }>('POST', `/api/scenarios/${id}/input`, content),
+  updateControls: (id: string, values: Record<string, string>) =>
+    request<Record<string, string>>('PUT', `/api/scenarios/${id}/controls`, JSON.stringify(values), 'application/json'),
+  lineage: (flowFileUuid: string) => request<LineageView>('GET', `/api/lineage/${flowFileUuid}`),
 };

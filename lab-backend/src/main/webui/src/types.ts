@@ -46,11 +46,26 @@ export interface Step {
   nifiLink: string | null;
 }
 
+export interface Control {
+  id: string;
+  type: 'slider' | 'select';
+  label: string;
+  description: string | null;
+  min: number | null;
+  max: number | null;
+  step: number | null;
+  unit: string | null;
+  options: string[] | null;
+  defaultValue: string | null;
+}
+
 export interface ScenarioDetail extends ScenarioSummary {
   input: Input;
   samples: Sample[];
   lanes: Lane[];
   steps: Step[];
+  controls: Control[];
+  controlValues: Record<string, string>;
   links: { provenance: string; bulletins: string };
 }
 
@@ -132,8 +147,67 @@ export interface NifiInfo {
   message: string | null;
 }
 
+/** A call the flow made to the lab's mock service. */
+export interface ServiceCall {
+  traceId: string | null;
+  attempt: number;
+  status: number;
+  outcome: string;
+  latencyMs: number;
+}
+
+export interface ProducerStats {
+  rate: number;
+  sent: number;
+  accepted: number;
+  refused: number;
+  failed: number;
+  lastAccepted: number;
+  lastRefused: number;
+  lastFailed: number;
+  lastError: string | null;
+}
+
+export interface AttributeChange {
+  name: string;
+  value: string | null;
+  previousValue: string | null;
+}
+
+export interface LineageEvent {
+  id: string;
+  eventType: string;
+  componentId: string | null;
+  componentName: string;
+  componentType: string;
+  millis: number;
+  flowFileUuid: string;
+  details: string | null;
+  attributeChanges: AttributeChange[];
+}
+
+export interface LineageView {
+  lineage: {
+    flowFileUuid: string;
+    events: LineageEvent[];
+    links: { sourceId: string; targetId: string; flowFileUuid: string }[];
+  };
+  provenanceLink: string;
+}
+
 export interface LiveEvent {
-  type: 'status' | 'bulletin' | 'item' | 'input' | 'reset' | 'deployment' | 'nifi' | 'heartbeat';
+  type:
+    | 'status'
+    | 'bulletin'
+    | 'item'
+    | 'input'
+    | 'reset'
+    | 'deployment'
+    | 'nifi'
+    | 'heartbeat'
+    | 'controls'
+    | 'service'
+    | 'producer';
   scenarioId: string;
   timestamp: number;
   data: unknown;

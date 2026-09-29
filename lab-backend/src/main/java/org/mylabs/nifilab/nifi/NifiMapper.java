@@ -1,6 +1,7 @@
 package org.mylabs.nifilab.nifi;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import org.mylabs.nifilab.nifi.NifiModel.AttributeChange;
 import org.mylabs.nifilab.nifi.NifiModel.Bulletin;
 import org.mylabs.nifilab.nifi.NifiModel.ConnectionStatus;
 import org.mylabs.nifilab.nifi.NifiModel.FlowEdge;
@@ -8,10 +9,21 @@ import org.mylabs.nifilab.nifi.NifiModel.FlowGraph;
 import org.mylabs.nifilab.nifi.NifiModel.FlowNode;
 import org.mylabs.nifilab.nifi.NifiModel.FlowStatus;
 import org.mylabs.nifilab.nifi.NifiModel.GroupRef;
+import org.mylabs.nifilab.nifi.NifiModel.Lineage;
+import org.mylabs.nifilab.nifi.NifiModel.LineageEvent;
+import org.mylabs.nifilab.nifi.NifiModel.LineageLink;
 import org.mylabs.nifilab.nifi.NifiModel.ProcessorStatus;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
 
 /** Maps NiFi REST entities (as JSON) to {@link NifiModel} records. */
 public final class NifiMapper {
@@ -125,6 +137,91 @@ public final class NifiMapper {
                     e.path("timestamp").asText(b.path("timestamp").asText())));
         }
         return bulletins;
+    }
+
+    /**
+     * Maps a finished lineage request. NiFi's graph alternates EVENT and FLOWFILE nodes; the lab shows events only,
+     * so links through a FLOWFILE node are joined into direct event-to-event links.
+     *
+     * @param eventDetails looks up {@code GET /provenance-events/{id}} (for component names and attributes)
+     */
+    public static Lineage lineage(String flowFileUuid, List<JsonNode> lineages, Function<String, JsonNode> eventDetails) {
+        Map<String, LineageEvent> events = new LinkedHashMap<>();
+        List<JsonNode> allLinks = new ArrayList<>();
+        for (JsonNode lineage : lineages) {
+            JsonNode results = lineage.path("lineage").path("results");
+            for (JsonNode n : results.path("nodes")) {
+                String id = n.path("id").asText();
+                if ("EVENT".equals(n.path("type").asText()) && !events.containsKey(id)) {
+                    events.put(id, event(n, eventDetails.apply(id).path("provenanceEvent")));
+                }
+            }
+            results.path("links").forEach(allLinks::add);
+        }
+
+        Map<String, List<String>> into = new HashMap<>();   // flowfile node -> events leading to it
+        Map<String, List<String>> outOf = new HashMap<>();  // flowfile node -> events it leads to
+        Set<LineageLink> links = new LinkedHashSet<>();
+        for (JsonNode l : allLinks) {
+            String source = l.path("sourceId").asText();
+            String target = l.path("targetId").asText();
+            String flowFile = l.path("flowFileUuid").asText();
+            boolean sourceIsEvent = events.containsKey(source);
+            boolean targetIsEvent = events.containsKey(target);
+            if (sourceIsEvent && targetIsEvent) {
+                links.add(new LineageLink(source, target, flowFile));
+            } else if (sourceIsEvent) {
+                into.computeIfAbsent(target, k -> new ArrayList<>()).add(source);
+            } else if (targetIsEvent) {
+                outOf.computeIfAbsent(source, k -> new ArrayList<>()).add(target);
+            }
+        }
+        outOf.forEach((flowFile, targets) -> into.getOrDefault(flowFile, List.of())
+                .forEach(source -> targets.forEach(target -> links.add(new LineageLink(source, target, flowFile)))));
+
+        List<LineageEvent> ordered = events.values().stream()
+                .sorted(Comparator.comparingLong(LineageEvent::millis).thenComparing(e -> Long.parseLong(e.id())))
+                .toList();
+        return new Lineage(flowFileUuid, ordered, List.copyOf(links));
+    }
+
+    /**
+     * Ids of events that have parent FlowFiles (JOIN, FORK, CLONE, ...). Each needs a PARENTS lineage request to
+     * pull in the parents' own history (a FORK is recorded on the parent, but NiFi's per-FlowFile lineage still
+     * stops at it).
+     */
+    public static List<String> eventsWithParents(List<JsonNode> lineages) {
+        Set<String> result = new LinkedHashSet<>();
+        for (JsonNode lineage : lineages) {
+            for (JsonNode n : lineage.path("lineage").path("results").path("nodes")) {
+                if ("EVENT".equals(n.path("type").asText()) && !n.path("parentUuids").isEmpty()) {
+                    result.add(n.path("id").asText());
+                }
+            }
+        }
+        return List.copyOf(result);
+    }
+
+    private static LineageEvent event(JsonNode node, JsonNode details) {
+        List<AttributeChange> changes = new ArrayList<>();
+        for (JsonNode a : details.path("attributes")) {
+            JsonNode previous = a.path("previousValue");
+            String value = a.path("value").isNull() ? null : a.path("value").asText(null);
+            String previousValue = previous.isMissingNode() || previous.isNull() ? null : previous.asText();
+            if (!Objects.equals(value, previousValue)) {
+                changes.add(new AttributeChange(a.path("name").asText(), value, previousValue));
+            }
+        }
+        return new LineageEvent(
+                node.path("id").asText(),
+                node.path("eventType").asText(),
+                details.path("componentId").asText(null),
+                details.path("componentName").asText(node.path("componentType").asText()),
+                node.path("componentType").asText(),
+                node.path("millis").asLong(),
+                node.path("flowFileUuid").asText(),
+                details.path("details").isNull() ? null : details.path("details").asText(null),
+                changes);
     }
 
     private static FlowNode node(JsonNode entity, String kind, String type) {

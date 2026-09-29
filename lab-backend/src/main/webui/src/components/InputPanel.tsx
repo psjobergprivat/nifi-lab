@@ -14,10 +14,12 @@ export function InputPanel({ scenario, running, inputs, onError }: Props) {
   const [text, setText] = useState(scenario.samples[0]?.content ?? '');
   const [sending, setSending] = useState(false);
 
-  const send = async () => {
+  const send = async (contents: string[]) => {
     setSending(true);
     try {
-      await api.sendInput(scenario.id, text);
+      for (const content of contents) {
+        await api.sendInput(scenario.id, content);
+      }
     } catch (e) {
       onError((e as Error).message);
     } finally {
@@ -48,13 +50,18 @@ export function InputPanel({ scenario, running, inputs, onError }: Props) {
         placeholder={scenario.input.placeholder ?? ''}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) send();
+          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) send([text]);
         }}
       />
       <div className="row">
-        <button className="primary" disabled={sending || !running} onClick={send}>
+        <button className="primary" disabled={sending || !running} onClick={() => send([text])}>
           Send to NiFi
         </button>
+        {scenario.samples.length > 1 && (
+          <button disabled={sending || !running} onClick={() => send(scenario.samples.map((s) => s.content))}>
+            Send all samples
+          </button>
+        )}
         {!running && <span className="muted small">Start the scenario to send data.</span>}
       </div>
       {inputs.length > 0 && (

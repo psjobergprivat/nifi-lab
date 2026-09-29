@@ -39,4 +39,20 @@ public final class NifiModel {
     public record Bulletin(long id, String sourceId, String sourceName, String level, String message,
                            String timestamp) {
     }
+
+    /** How one FlowFile came to be: provenance events and the order they happened in. */
+    public record Lineage(String flowFileUuid, List<LineageEvent> events, List<LineageLink> links) {
+    }
+
+    public record LineageEvent(String id, String eventType, String componentId, String componentName,
+                               String componentType, long millis, String flowFileUuid, String details,
+                               List<AttributeChange> attributeChanges) {
+    }
+
+    /** @param previousValue null if the attribute is new */
+    public record AttributeChange(String name, String value, String previousValue) {
+    }
+
+    public record LineageLink(String sourceId, String targetId, String flowFileUuid) {
+    }
 }

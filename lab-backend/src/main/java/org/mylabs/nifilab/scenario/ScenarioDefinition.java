@@ -20,6 +20,7 @@ public record ScenarioDefinition(
         List<Sample> samples,
         List<Lane> lanes,
         List<Step> steps,
+        List<Control> controls,
         @JsonIgnore byte[] flowDefinition) {
 
     public ScenarioDefinition {
@@ -27,10 +28,11 @@ public record ScenarioDefinition(
         samples = samples == null ? List.of() : List.copyOf(samples);
         lanes = lanes == null ? List.of() : List.copyOf(lanes);
         steps = steps == null ? List.of() : List.copyOf(steps);
+        controls = controls == null ? List.of() : List.copyOf(controls);
     }
 
     ScenarioDefinition withFlowDefinition(byte[] flow) {
-        return new ScenarioDefinition(id, order, title, summary, learn, input, samples, lanes, steps, flow);
+        return new ScenarioDefinition(id, order, title, summary, learn, input, samples, lanes, steps, controls, flow);
     }
 
     /**
@@ -51,6 +53,17 @@ public record ScenarioDefinition(
     /** An output bucket; flows post results to {@code /api/sink/<scenario>/<lane id>}. */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Lane(String id, String title, String description) {
+    }
+
+    /**
+     * A knob in the UI. Well-known ids are read by the lab: {@code service.mode}, {@code service.failure-rate},
+     * {@code service.latency-ms} (the mock service) and {@code producer.rate} (the producer).
+     *
+     * @param type slider or select
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Control(String id, String type, String label, String description, Integer min, Integer max,
+                          Integer step, String unit, List<String> options, String defaultValue) {
     }
 
     /** A guided-mode step. {@code component} is the name of a NiFi component in the flow, used for deep links. */

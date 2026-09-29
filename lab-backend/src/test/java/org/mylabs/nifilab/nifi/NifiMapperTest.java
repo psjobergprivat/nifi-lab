@@ -82,4 +82,42 @@ class NifiMapperTest {
         assertEquals("ERROR", bulletins.get(0).level());
         assertEquals(4, bulletins.get(0).id());
     }
+
+    @Test
+    void lineageJoinsLinksThroughFlowFileNodesAndMergesParentRequests() throws Exception {
+        // Child FlowFile c: JOIN(3) -> SEND(4). Its lineage links through the FlowFile node "c".
+        JsonNode child = json.readTree("""
+                {"lineage": {"results": {
+                  "nodes": [
+                    {"id": "3", "type": "EVENT", "eventType": "JOIN", "flowFileUuid": "c", "millis": 30, "parentUuids": ["p1"]},
+                    {"id": "c", "type": "FLOWFILE", "flowFileUuid": "c"},
+                    {"id": "4", "type": "EVENT", "eventType": "SEND", "flowFileUuid": "c", "millis": 40, "parentUuids": []}
+                  ],
+                  "links": [{"sourceId": "3", "targetId": "c", "flowFileUuid": "c"},
+                            {"sourceId": "c", "targetId": "4", "flowFileUuid": "c"}]
+                }}}""");
+        // Parent FlowFile p1 (from a PARENTS request): RECEIVE(1) -> JOIN(3), repeating event 3.
+        JsonNode parents = json.readTree("""
+                {"lineage": {"results": {
+                  "nodes": [
+                    {"id": "1", "type": "EVENT", "eventType": "RECEIVE", "flowFileUuid": "p1", "millis": 10, "parentUuids": []},
+                    {"id": "3", "type": "EVENT", "eventType": "JOIN", "flowFileUuid": "c", "millis": 30, "parentUuids": ["p1"]}
+                  ],
+                  "links": [{"sourceId": "1", "targetId": "3", "flowFileUuid": "p1"}]
+                }}}""");
+        JsonNode details = json.readTree("""
+                {"provenanceEvent": {"componentName": "Merge", "attributes": [
+                  {"name": "kept", "value": "x", "previousValue": "x"},
+                  {"name": "added", "value": "y", "previousValue": null}]}}""");
+
+        assertEquals(List.of("3"), NifiMapper.eventsWithParents(List.of(child)));
+        NifiModel.Lineage lineage = NifiMapper.lineage("c", List.of(child, parents), id -> details);
+
+        assertEquals(List.of("1", "3", "4"), lineage.events().stream().map(NifiModel.LineageEvent::id).toList());
+        assertEquals(java.util.Set.of("1->3", "3->4"),
+                lineage.links().stream().map(l -> l.sourceId() + "->" + l.targetId()).collect(java.util.stream.Collectors.toSet()));
+        assertEquals("Merge", lineage.events().get(1).componentName());
+        assertEquals(List.of("added"),
+                lineage.events().get(1).attributeChanges().stream().map(NifiModel.AttributeChange::name).toList());
+    }
 }

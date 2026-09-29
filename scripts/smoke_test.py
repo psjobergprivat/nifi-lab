@@ -66,9 +66,9 @@ def wait_for(description, predicate, timeout):
 class Sse:
     """Collects events from /api/live/<scenario> in a background thread."""
 
-    def __init__(self, lab):
+    def __init__(self, lab, scenario=SCENARIO):
         self.events = []
-        self.response = urllib.request.urlopen(f"{lab}/api/live/{SCENARIO}", timeout=120)
+        self.response = urllib.request.urlopen(f"{lab}/api/live/{scenario}", timeout=120)
         threading.Thread(target=self._read, daemon=True).start()
 
     def _read(self):
@@ -79,6 +79,9 @@ class Sse:
                     self.events.append(json.loads(line[5:]))
         except Exception:
             pass
+
+    def items(self, lane=None):
+        return [e["data"] for e in list(self.events) if e["type"] == "item" and (lane is None or e["data"]["lane"] == lane)]
 
     def wait(self, description, predicate, timeout=30):
         deadline = time.time() + timeout
@@ -183,7 +186,133 @@ def main():
                      and all(p["runStatus"] != "Running" for p in e["data"]["processors"]), 15)
     check("queues empty and processors stopped", bool(empty))
     sse.close()
+
+    for scenario_check in (check_routing, check_transform, check_split_merge, check_errors_retry,
+                           check_back_pressure, check_provenance):
+        scenario_check(lab)
     return finish()
+
+
+# --- phase 2 scenarios ---------------------------------------------------------------------------------------
+
+def scenario_api(lab, sid, path, body=None, content_type="text/plain"):
+    status, raw = call("POST" if path != "controls" else "PUT", f"{lab}/api/scenarios/{sid}/{path}", body,
+                       {"Content-Type": content_type} if body is not None else {})
+    return status, json.loads(raw) if raw else None
+
+
+def begin(lab, sid, controls=None):
+    """Reset, apply controls, start, and open the live stream. Returns (sse, scenario detail)."""
+    print(sid)
+    sse = Sse(lab, sid)
+    scenario_api(lab, sid, "reset")
+    if controls:
+        scenario_api(lab, sid, "controls", json.dumps(controls), "application/json")
+    status, _ = scenario_api(lab, sid, "start")
+    _, detail = get_json(f"{lab}/api/scenarios/{sid}")
+    check(f"{sid} started", status == 200)
+    time.sleep(2)  # ListenHTTP needs a moment after start before it accepts connections
+    return sse, detail
+
+
+def send_samples(lab, sid, detail, names=None):
+    for sample in detail["samples"]:
+        if names is None or sample["name"] in names:
+            status, _ = scenario_api(lab, sid, "input", sample["content"])
+            if status != 200:
+                check(f"sample '{sample['name']}' accepted", False, f"HTTP {status}")
+
+
+def finish_scenario(lab, sid, sse):
+    scenario_api(lab, sid, "reset")
+    sse.close()
+
+
+def check_routing(lab):
+    sse, detail = begin(lab, "routing")
+    send_samples(lab, "routing", detail)
+    sse.wait("7 routed items", lambda e: len(sse.items()) >= 7, 20)
+    lanes = {}
+    for item in sse.items():
+        lanes.setdefault(item["lane"], []).append(json.loads(item["content"])["orderId"] if item["lane"] != "invalid" else "x")
+    check("orders routed to eu / us / unmatched", lanes.get("eu") and lanes.get("us") and lanes.get("unmatched"), str(lanes))
+    check("big Swedish order copied into eu AND high-value",
+          "o-1003" in lanes.get("eu", []) and "o-1003" in lanes.get("high-value", []))
+    check("non-JSON goes to invalid", len(lanes.get("invalid", [])) == 1)
+    finish_scenario(lab, "routing", sse)
+
+
+def check_transform(lab):
+    sse, detail = begin(lab, "transform")
+    send_samples(lab, "transform", detail, ["Sales CSV", "Broken CSV"])
+    sse.wait("5 results", lambda e: len(sse.items()) >= 5, 20)
+    lanes = {i["lane"]: i["content"] for i in sse.items()}
+    summary = json.loads(lanes.get("summary", "[]"))
+    check("CSV converted to JSON", len(json.loads(lanes.get("as-json", "[]"))) == 5)
+    check("SQL summary groups by product", summary and summary[0] == {"product": "coffee", "units": 43, "revenue": 193.5},
+          str(summary[:1]))
+    check("reshaped records have renamed/computed fields", '"line_total"' in lanes.get("reshaped", ""))
+    check("broken CSV goes to failure", "lots" in lanes.get("failure", ""))
+    finish_scenario(lab, "transform", sse)
+
+
+def check_split_merge(lab):
+    sse, detail = begin(lab, "split-merge")
+    send_samples(lab, "split-merge", detail, ["Shopping list"])
+    merged = sse.wait("merged text", lambda e: e["type"] == "item" and e["data"]["lane"] == "merged", 30)
+    check("split into 4 lines", len(sse.items("line")) == 4)
+    check("merged back in order", merged and merged["data"]["content"] == "#1/4: MILK\n#2/4: BREAD\n#3/4: EGGS\n#4/4: COFFEE",
+          merged and repr(merged["data"]["content"]))
+    finish_scenario(lab, "split-merge", sse)
+
+
+def check_errors_retry(lab):
+    sse, detail = begin(lab, "errors-retry", {"service.mode": "down"})
+    send_samples(lab, "errors-retry", detail, ["Payment", "Invalid payment"])
+    rejected = sse.wait("rejected item", lambda e: e["type"] == "item" and e["data"]["lane"] == "rejected", 20)
+    check("4xx is not retried (rejected at once)", bool(rejected))
+    dead = sse.wait("dead-letter item", lambda e: e["type"] == "item" and e["data"]["lane"] == "dead-letter", 45)
+    attempts = [e["data"]["attempt"] for e in sse.events if e["type"] == "service" and e["data"]["status"] == 503]
+    check("5xx retried 3 times, then dead letter", bool(dead) and max(attempts or [0]) == 4, f"attempts {attempts}")
+    # Service back up: replay the dead letter
+    scenario_api(lab, "errors-retry", "controls", json.dumps({"service.mode": "normal"}), "application/json")
+    if dead:
+        scenario_api(lab, "errors-retry", "input", dead["data"]["content"])
+    paid = sse.wait("replayed payment paid", lambda e: e["type"] == "item" and e["data"]["lane"] == "paid", 20)
+    check("replayed dead letter gets paid", bool(paid))
+    finish_scenario(lab, "errors-retry", sse)
+
+
+def check_back_pressure(lab):
+    sse, _ = begin(lab, "back-pressure", {"producer.rate": "10", "service.latency-ms": "500"})
+    refused = sse.wait("503 refusals", lambda e: e["type"] == "producer" and e["data"]["refused"] > 0, 40)
+    check("producer is pushed back with 503", bool(refused), refused and f"{refused['data']['refused']} refused")
+    full = sse.wait("full queues", lambda e: e["type"] == "status"
+                    and sum(1 for c in e["data"]["connections"] if c["queuedCount"] >= 20) >= 2, 20)
+    check("two queues reach their back pressure threshold", bool(full))
+    scenario_api(lab, "back-pressure", "controls", json.dumps({"producer.rate": "0", "service.latency-ms": "0"}),
+                 "application/json")
+    accepted = [e["data"]["accepted"] for e in sse.events if e["type"] == "producer"][-1]
+    drained = sse.wait("all accepted events delivered", lambda e: len(sse.items()) >= accepted, 40)
+    check("no accepted event is lost", bool(drained), f"{len(sse.items())}/{accepted} delivered")
+    finish_scenario(lab, "back-pressure", sse)
+
+
+def check_provenance(lab):
+    sse, detail = begin(lab, "provenance")
+    send_samples(lab, "provenance", detail)
+    sse.wait("3 country groups", lambda e: len(sse.items()) >= 3, 20)
+    groups = {i["attributes"].get("order.country"): i for i in sse.items()}
+    de = groups.get("DE")
+    check("orders regrouped per country across batches",
+          de is not None and "b1-4" in de["content"] and "b2-1" in de["content"], str(sorted(groups)))
+    if de:
+        time.sleep(2)  # provenance is indexed asynchronously
+        status, view = get_json(f"{lab}/api/lineage/{de['attributes']['uuid']}")
+        types = [e["eventType"] for e in view["lineage"]["events"]] if status == 200 else []
+        check("lineage reaches back to both batches (2 RECEIVE, FORK, JOIN, SEND)",
+              types.count("RECEIVE") == 2 and "FORK" in types and "JOIN" in types and "SEND" in types, str(types))
+    finish_scenario(lab, "provenance", sse)
 
 
 def finish():

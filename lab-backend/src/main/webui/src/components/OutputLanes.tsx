@@ -1,7 +1,14 @@
 import { useState } from 'react';
 import type { Lane, SinkItem } from '../types';
 
-export function OutputLanes({ lanes, items }: { lanes: Lane[]; items: SinkItem[] }) {
+interface Props {
+  lanes: Lane[];
+  items: SinkItem[];
+  onTrace: (flowFileUuid: string) => void;
+  onResend: (content: string) => void;
+}
+
+export function OutputLanes({ lanes, items, onTrace, onResend }: Props) {
   // Items for lanes the scenario did not declare still show up, in their own lane.
   const known = new Set(lanes.map((l) => l.id));
   const extra = [...new Set(items.map((i) => i.lane).filter((l) => !known.has(l)))].map((id) => ({
@@ -24,7 +31,11 @@ export function OutputLanes({ lanes, items }: { lanes: Lane[]; items: SinkItem[]
             {laneItems.length === 0 ? (
               <div className="empty small">Nothing has arrived yet.</div>
             ) : (
-              laneItems.map((item, index) => <ItemCard key={`${item.traceId}-${item.receivedAt}-${index}`} item={item} />)
+              laneItems
+                .slice(0, 50)
+                .map((item, index) => (
+                  <ItemCard key={`${item.traceId}-${item.receivedAt}-${index}`} item={item} onTrace={onTrace} onResend={onResend} />
+                ))
             )}
           </div>
         );
@@ -33,7 +44,7 @@ export function OutputLanes({ lanes, items }: { lanes: Lane[]; items: SinkItem[]
   );
 }
 
-function ItemCard({ item }: { item: SinkItem }) {
+function ItemCard({ item, onTrace, onResend }: { item: SinkItem } & Pick<Props, 'onTrace' | 'onResend'>) {
   const [open, setOpen] = useState(false);
   const attributes = Object.entries(item.attributes);
   return (
@@ -43,9 +54,20 @@ function ItemCard({ item }: { item: SinkItem }) {
         <span className="muted small">{new Date(item.receivedAt).toLocaleTimeString()}</span>
       </div>
       <pre className="item-content">{item.content}</pre>
-      <button className="link" onClick={() => setOpen(!open)}>
-        {open ? '▾' : '▸'} Attributes ({attributes.length})
-      </button>
+      <div className="item-actions">
+        <button className="link" onClick={() => setOpen(!open)}>
+          {open ? '▾' : '▸'} Attributes ({attributes.length})
+        </button>
+        <span className="spacer" />
+        {item.attributes.uuid && (
+          <button className="link" title="Show this FlowFile's provenance lineage" onClick={() => onTrace(item.attributes.uuid)}>
+            Trace
+          </button>
+        )}
+        <button className="link" title="Send this content into the flow again" onClick={() => onResend(item.content)}>
+          Send again
+        </button>
+      </div>
       {open && (
         <table className="attributes">
           <tbody>

@@ -1,0 +1,71 @@
+id: transform
+order: 3
+title: Format conversion and transformation
+summary: >
+  CSV goes in, JSON comes out - in four shapes. NiFi's record processors read data with a Reader service and
+  write it with a Writer service, and QueryRecord lets you reshape records with SQL.
+learn:
+  - Records - structured rows NiFi can read and write in many formats (CSV, JSON, Avro, XML, ...)
+  - Controller services (CSV reader, JSON writer) are shared configuration used by processors
+  - Schemas can be inferred from the data
+  - QueryRecord runs SQL over the content; each query is a new relationship
+
+input:
+  type: text
+  port: 9103
+  path: csv
+  contentType: text/csv
+  placeholder: 'product,quantity,price'
+
+samples:
+  - name: Sales CSV
+    content: |
+      product,quantity,price
+      coffee,3,4.5
+      tea,10,3.0
+      croissant,12,2.75
+      coffee,40,4.5
+      bagel,2,3.25
+  - name: Small CSV
+    content: |
+      product,quantity,price
+      juice,1,5.0
+  - name: Broken CSV
+    content: |
+      product,quantity,price
+      coffee,lots,cheap
+
+lanes:
+  - id: as-json
+    title: As JSON
+    description: SELECT * - the same records, written as JSON
+  - id: reshaped
+    title: Reshaped
+    description: renamed fields, upper case, computed line_total
+  - id: summary
+    title: Summary
+    description: GROUP BY product
+  - id: big-orders
+    title: Big orders
+    description: WHERE quantity * price >= 100
+  - id: failure
+    title: Failure
+    description: records that could not be read
+
+steps:
+  - title: Receive
+    component: Receive CSV
+    text: The whole CSV file is one FlowFile.
+  - title: Query
+    component: Query records
+    text: >
+      QueryRecord reads the content with the "CSV reader" controller service (types are inferred: quantity is a
+      number, product a string) and writes each query's result with the "JSON writer" service. Four SQL queries,
+      four results from one input. Open the processor's configuration in NiFi to see the SQL, and the group's
+      Controller Services to see the reader and writer.
+  - title: Label the lane
+    component: Set lane from query
+    text: QueryRecord sets QueryRecord.Route to the name of the query that produced the FlowFile.
+  - title: Deliver
+    component: Deliver to lab
+    text: Each result goes to its own lane. Try the broken CSV - "lots" is not a number.

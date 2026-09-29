@@ -94,4 +94,22 @@ public interface NifiApi {
     @POST
     @Path("/processors/{id}/state/clear-requests")
     JsonNode clearProcessorState(@PathParam("id") String processorId);
+
+    /** Body: {"lineage": {"request": {"lineageRequestType": "FLOWFILE", "uuid": ...}}} */
+    @POST
+    @Path("/provenance/lineage")
+    @Consumes(MediaType.APPLICATION_JSON)
+    JsonNode submitLineage(JsonNode body);
+
+    @GET
+    @Path("/provenance/lineage/{id}")
+    JsonNode lineage(@PathParam("id") String id);
+
+    @DELETE
+    @Path("/provenance/lineage/{id}")
+    JsonNode deleteLineage(@PathParam("id") String id);
+
+    @GET
+    @Path("/provenance-events/{id}")
+    JsonNode provenanceEvent(@PathParam("id") String id);
 }

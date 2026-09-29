@@ -2,6 +2,7 @@ package org.mylabs.nifilab.scenario;
 
 import io.quarkus.scheduler.Scheduled;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 import org.mylabs.nifilab.LabConfig;
@@ -47,6 +48,12 @@ public class ScenarioService {
 
     @Inject
     LiveHub hub;
+
+    @Inject
+    ControlStore controls;
+
+    @Inject
+    Event<ScenarioReset> resetEvent;
 
     private final Map<String, Deployment> deployments = new ConcurrentHashMap<>();
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
@@ -139,22 +146,50 @@ public class ScenarioService {
         nifi.stop(d.groupId());
         nifi.emptyQueues(d.groupId());
         nifi.clearState(d.processorIds());
+        controls.reset(scenarioId);
+        resetEvent.fire(new ScenarioReset(scenarioId));
         hub.publish("reset", scenarioId, null);
         return update(d.with(Deployment.RunState.STOPPED));
     }
 
     /**
-     * Posts user input to the scenario's ListenHTTP processor. Lab attributes travel as HTTP headers, which
-     * ListenHTTP turns into FlowFile attributes: a trace id to follow the item, and where to send results.
+     * Posts user input to the scenario's ListenHTTP processor and announces it on the live stream.
      *
      * @return the trace id
      */
     public String sendInput(String scenarioId, String content) {
-        ScenarioDefinition scenario = registry.find(scenarioId).orElseThrow(() -> new ScenarioException(404,
-                "Unknown scenario " + scenarioId));
-        requireDeployed(scenarioId);
-        ScenarioDefinition.Input input = scenario.input();
         String traceId = UUID.randomUUID().toString();
+        int status;
+        try {
+            status = post(scenarioId, traceId, content);
+        } catch (IOException e) {
+            // Refused outright, or - through a container port forwarder - accepted and then dropped.
+            if (e instanceof ConnectException || deployment(scenarioId).runState() != Deployment.RunState.RUNNING) {
+                throw new ScenarioException(409, "Nothing is listening on port " + scenario(scenarioId).input().port()
+                        + " - start the scenario first (the ListenHTTP processor only listens while running).");
+            }
+            throw new ScenarioException(502, "Could not send input to NiFi: " + e.getMessage());
+        }
+        if (status == 503) {
+            throw new ScenarioException(503, "NiFi refused the input (503): the flow is applying back pressure.");
+        }
+        if (status / 100 != 2) {
+            throw new ScenarioException(502, "NiFi rejected the input (" + status + ")");
+        }
+        hub.publish("input", scenarioId, Map.of("traceId", traceId, "content", content));
+        return traceId;
+    }
+
+    /**
+     * Low-level POST to the scenario's ListenHTTP processor. Lab attributes travel as HTTP headers, which ListenHTTP
+     * turns into FlowFile attributes: a trace id to follow the item, where to deliver results, and the backend's
+     * base URL (for flows that call the mock service).
+     *
+     * @return the HTTP status NiFi answered with (503 = back pressure)
+     */
+    public int post(String scenarioId, String traceId, String content) throws IOException {
+        ScenarioDefinition.Input input = scenario(scenarioId).input();
+        requireDeployed(scenarioId);
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create("http://" + config.nifi().listenHost() + ":" + input.port() + "/" + input.path()))
                 .timeout(Duration.ofSeconds(10))
@@ -162,29 +197,29 @@ public class ScenarioService {
                 .header("lab.trace.id", traceId)
                 .header("lab.scenario", scenarioId)
                 .header("lab.sink.url", sinkUrl(scenarioId))
+                .header("lab.backend.url", backendUrl())
                 .POST(HttpRequest.BodyPublishers.ofString(content, StandardCharsets.UTF_8))
                 .build();
         try {
-            HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() / 100 != 2) {
-                throw new ScenarioException(502, "NiFi rejected the input (" + response.statusCode() + "): " + response.body());
-            }
-        } catch (ConnectException e) {
-            throw new ScenarioException(409, "Nothing is listening on port " + input.port()
-                    + " - start the scenario first (the ListenHTTP processor only listens while running).");
-        } catch (IOException e) {
-            throw new ScenarioException(502, "Could not send input to NiFi: " + e.getMessage());
+            return http.send(request, HttpResponse.BodyHandlers.discarding()).statusCode();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new ScenarioException(503, "Interrupted");
+            throw new IOException("Interrupted", e);
         }
-        hub.publish("input", scenarioId, Map.of("traceId", traceId, "content", content));
-        return traceId;
+    }
+
+    private ScenarioDefinition scenario(String scenarioId) {
+        return registry.find(scenarioId).orElseThrow(() -> new ScenarioException(404, "Unknown scenario " + scenarioId));
+    }
+
+    /** The backend's base URL as NiFi sees it. */
+    String backendUrl() {
+        String base = config.sinkBaseUrl();
+        return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
     }
 
     String sinkUrl(String scenarioId) {
-        String base = config.sinkBaseUrl();
-        return (base.endsWith("/") ? base.substring(0, base.length() - 1) : base) + "/api/sink/" + scenarioId;
+        return backendUrl() + "/api/sink/" + scenarioId;
     }
 
     /** Keeps the cached run state in sync with what the live poller sees (it may be changed in the NiFi UI). */

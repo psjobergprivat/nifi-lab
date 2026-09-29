@@ -46,6 +46,16 @@ class ScenarioRegistryTest {
                 }
             }
 
+            // Lanes set with a literal value (e.g. "Lane = paid") must be declared in scenario.yaml.
+            Set<String> lanes = new HashSet<>();
+            s.lanes().forEach(l -> lanes.add(l.id()));
+            for (JsonNode p : contents.path("processors")) {
+                String lane = p.path("properties").path("lab.lane").asText("");
+                if (!lane.isEmpty() && !lane.contains("${")) {
+                    assertTrue(lanes.contains(lane), "'" + p.path("name").asText() + "' sets undeclared lane " + lane);
+                }
+            }
+
             JsonNode listener = listenHttp(contents);
             assertEquals(String.valueOf(s.input().port()), listener.path("properties").path("Listening Port").asText(),
                     "input.port must match the ListenHTTP port");

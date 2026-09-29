@@ -1,0 +1,67 @@
+id: split-merge
+order: 4
+title: Split and merge
+summary: >
+  One text goes in and is split into one FlowFile per line. Each line is processed on its own, and then all
+  lines are put back together in their original order.
+learn:
+  - Splitting turns one FlowFile into many (fan-out)
+  - fragment.identifier, fragment.index and fragment.count remember where each piece came from
+  - MergeContent in "Defragment" mode reassembles the pieces in order
+  - Merging by bins (count, size, age) is the other merge strategy - see the Provenance scenario
+
+input:
+  type: text
+  port: 9104
+  path: lines
+  contentType: text/plain; charset=UTF-8
+  placeholder: One item per line...
+
+samples:
+  - name: Shopping list
+    content: |
+      milk
+      bread
+      eggs
+      coffee
+  - name: Poem
+    content: |
+      Data flows like water
+      through processors and queues
+      to where it belongs
+  - name: One line
+    content: just one line
+
+lanes:
+  - id: line
+    title: Lines
+    description: one item per line, after "Process line"
+  - id: merged
+    title: Merged
+    description: all lines put back together
+
+steps:
+  - title: Receive
+    component: Receive text
+    text: The whole text is one FlowFile.
+  - title: Split
+    component: Split into lines
+    text: >
+      SplitText emits one FlowFile per line. Each gets fragment.identifier (same for all lines of this input),
+      fragment.index (1, 2, 3...) and fragment.count. Look at those attributes on the items in the Lines lane.
+  - title: Process each line
+    component: Process line
+    text: ReplaceText rewrites each line on its own - here it adds its position and upper-cases it.
+  - title: Tag and fan out
+    component: Lane = line
+    text: >
+      The processed lines are sent to two places at once: to the lab (Lines lane) and to Reassemble. A connection
+      from one relationship to two destinations copies the FlowFile.
+  - title: Reassemble
+    component: Reassemble
+    text: >
+      MergeContent with Merge Strategy "Defragment" waits until it has all fragment.count lines of one
+      fragment.identifier, then joins them in fragment.index order with a newline between.
+  - title: Deliver
+    component: Deliver to lab
+    text: The merged text arrives in the Merged lane - one output for the whole input again.

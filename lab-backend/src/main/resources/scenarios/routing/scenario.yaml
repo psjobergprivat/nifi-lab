@@ -1,0 +1,72 @@
+id: routing
+order: 2
+title: Content-based routing
+summary: >
+  Orders are routed to different lanes depending on what they contain: where they come from and how much
+  they are worth. One order can match several rules - and then NiFi makes a copy for each.
+learn:
+  - EvaluateJsonPath copies values from the content into attributes
+  - RouteOnAttribute sends FlowFiles to relationships named after its rules
+  - '"Route to Property name" clones a FlowFile that matches more than one rule'
+  - FlowFiles that match no rule go to "unmatched"; broken input goes to "failure"
+
+input:
+  type: text
+  port: 9102
+  path: orders
+  contentType: application/json
+  placeholder: '{"orderId": "o-1", "country": "SE", "amount": 250, "priority": "normal"}'
+
+samples:
+  - name: Swedish order
+    content: '{"orderId": "o-1001", "country": "SE", "amount": 250, "priority": "normal"}'
+  - name: US order
+    content: '{"orderId": "o-1002", "country": "US", "amount": 80, "priority": "normal"}'
+  - name: Big Swedish order
+    content: '{"orderId": "o-1003", "country": "SE", "amount": 1500, "priority": "high"}'
+  - name: Japanese order
+    content: '{"orderId": "o-1004", "country": "JP", "amount": 40, "priority": "low"}'
+  - name: Big Brazilian order
+    content: '{"orderId": "o-1005", "country": "BR", "amount": 9900, "priority": "high"}'
+  - name: Not JSON
+    content: 'this is not an order'
+
+lanes:
+  - id: eu
+    title: EU
+    description: country is an EU/Nordic country
+  - id: us
+    title: US
+    description: country = US
+  - id: high-value
+    title: High value
+    description: amount >= 1000 (in addition to any country lane)
+  - id: unmatched
+    title: Unmatched
+    description: no rule matched
+  - id: invalid
+    title: Invalid
+    description: not JSON - EvaluateJsonPath failed
+
+steps:
+  - title: Receive
+    component: Receive orders
+    text: Each order arrives as JSON over HTTP and becomes one FlowFile.
+  - title: Extract fields
+    component: Extract order fields
+    text: >
+      EvaluateJsonPath reads $.country, $.amount, ... from the content and stores them as attributes
+      (order.country, order.amount). Routing then only looks at attributes - it never parses the content again.
+      Content that is not JSON goes to "failure".
+  - title: Route
+    component: Route orders
+    text: >
+      Each property of RouteOnAttribute is a rule written in Expression Language, e.g.
+      ${order.amount:toDecimal():ge(1000)}. Every rule is a relationship. With "Route to Property name" a FlowFile
+      goes to every rule that matches, so a big Swedish order ends up in both "eu" and "high-value".
+  - title: Label the lane
+    component: Set lane from route
+    text: RouteOnAttribute writes the rule name into the RouteOnAttribute.Route attribute; this turns it into the lab lane.
+  - title: Deliver
+    component: Deliver to lab
+    text: The result is posted back to the lab, into the lane named by the lab.lane attribute.

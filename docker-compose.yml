@@ -10,7 +10,14 @@ services:
     hostname: nifi
     ports:
       - "8443:8443"   # NiFi UI / REST API
-      - "9101:9101"   # scenario 01 ListenHTTP (needed only when the backend runs on the host)
+      # Scenario ListenHTTP ports, needed only when the backend runs on the host (dev mode).
+      - "9101:9101"
+      - "9102:9102"
+      - "9103:9103"
+      - "9104:9104"
+      - "9106:9106"
+      - "9107:9107"
+      - "9108:9108"
     environment:
       SINGLE_USER_CREDENTIALS_USERNAME: ${NIFI_USERNAME:-nifilab}
       SINGLE_USER_CREDENTIALS_PASSWORD: ${NIFI_PASSWORD:-nifilabpassword}

@@ -1,0 +1,50 @@
+id: provenance
+order: 8
+title: Data provenance and lineage
+summary: >
+  A batch of orders is split into single orders and regrouped per country. Pick any output and ask
+  "where did this come from?" - NiFi's provenance repository remembers every step of every FlowFile.
+learn:
+  - Provenance - NiFi records an event for everything that happens to a FlowFile
+  - Lineage - the graph of events that led to one FlowFile, across splits and merges
+  - FORK (one becomes many) and JOIN (many become one) events
+  - Bin-packing merge - collect FlowFiles into bins by an attribute, close bins by age or size
+
+input:
+  type: text
+  port: 9108
+  path: batches
+  contentType: application/json
+  placeholder: '[{"orderId": "a", "country": "SE"}, ...]'
+
+samples:
+  - name: Mixed batch
+    content: '[{"orderId": "b1-1", "country": "SE", "amount": 120}, {"orderId": "b1-2", "country": "US", "amount": 80}, {"orderId": "b1-3", "country": "SE", "amount": 45}, {"orderId": "b1-4", "country": "DE", "amount": 300}, {"orderId": "b1-5", "country": "US", "amount": 15}]'
+  - name: Second batch
+    content: '[{"orderId": "b2-1", "country": "DE", "amount": 60}, {"orderId": "b2-2", "country": "SE", "amount": 999}]'
+
+lanes:
+  - id: by-country
+    title: Orders by country
+    description: one JSON array per country, 3 seconds after the orders arrived
+
+steps:
+  - title: Receive
+    component: Receive batch
+    text: A JSON array of orders arrives as one FlowFile (provenance RECEIVE event).
+  - title: Split
+    component: Split orders
+    text: SplitJson emits one FlowFile per order - a FORK event links each order to the batch it came from.
+  - title: Extract country
+    component: Extract country
+    text: The country is copied into the order.country attribute (ATTRIBUTES_MODIFIED).
+  - title: Group by country
+    component: Group by country
+    text: >
+      MergeContent puts orders into bins by order.country and closes each bin after 3 seconds (Max Bin Age).
+      Orders from two batches sent within 3 seconds end up in the same output - a JOIN event records which.
+  - title: Trace an output
+    component: Deliver to lab
+    text: >
+      Click "Trace" on an output to see its lineage: RECEIVE, FORK, ATTRIBUTES_MODIFIED, JOIN, SEND. The same
+      works for any item in any scenario. In NiFi, open Provenance (top-right menu) and click the lineage icon.

@@ -4,6 +4,7 @@ import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
+import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
@@ -32,14 +33,18 @@ public class ScenarioResource {
     @Inject
     DeepLinks links;
 
+    @Inject
+    ControlStore controlStore;
+
     public record ScenarioSummary(String id, int order, String title, String summary, List<String> learn,
                                   DeploymentView deployment) {
     }
 
     public record ScenarioDetail(String id, int order, String title, String summary, List<String> learn,
                                  ScenarioDefinition.Input input, List<ScenarioDefinition.Sample> samples,
-                                 List<ScenarioDefinition.Lane> lanes, List<StepView> steps, DeploymentView deployment,
-                                 Map<String, String> links) {
+                                 List<ScenarioDefinition.Lane> lanes, List<StepView> steps,
+                                 List<ScenarioDefinition.Control> controls, Map<String, String> controlValues,
+                                 DeploymentView deployment, Map<String, String> links) {
     }
 
     public record StepView(String title, String text, String component, String nifiLink) {
@@ -80,7 +85,7 @@ public class ScenarioResource {
                                 : d.component(step.component()).map(n -> links.component(d.groupId(), n)).orElse(null)))
                 .toList();
         return new ScenarioDetail(s.id(), s.order(), s.title(), s.summary(), s.learn(), s.input(), s.samples(),
-                s.lanes(), steps, view(d),
+                s.lanes(), steps, s.controls(), controlStore.values(id), view(d),
                 Map.of("provenance", links.provenance(), "bulletins", links.bulletins()));
     }
 
@@ -138,6 +143,14 @@ public class ScenarioResource {
     public InputResult input(@PathParam("id") String id, String content) {
         scenario(id);
         return new InputResult(service.sendInput(id, content == null ? "" : content));
+    }
+
+    @PUT
+    @Path("/{id}/controls")
+    @Consumes(MediaType.APPLICATION_JSON)
+    public Map<String, String> updateControls(@PathParam("id") String id, Map<String, String> changes) {
+        scenario(id);
+        return controlStore.update(id, changes == null ? Map.of() : changes);
     }
 
     private ScenarioDefinition scenario(String id) {

@@ -12,11 +12,18 @@ import org.mylabs.nifilab.nifi.NifiModel.Bulletin;
 import org.mylabs.nifilab.nifi.NifiModel.FlowGraph;
 import org.mylabs.nifilab.nifi.NifiModel.FlowStatus;
 import org.mylabs.nifilab.nifi.NifiModel.GroupRef;
+import org.mylabs.nifilab.nifi.NifiModel.Lineage;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 /** High-level NiFi operations used by the scenarios. All methods are blocking. */
@@ -32,6 +39,8 @@ public class NifiService {
 
     @Inject
     NifiAuth auth;
+
+    private static final int MAX_LINEAGE_ROUNDS = 10;
 
     private final String clientId = "nifi-lab-" + UUID.randomUUID();
 
@@ -67,6 +76,54 @@ public class NifiService {
 
     public List<Bulletin> bulletins(String groupId, Long afterId) {
         return NifiMapper.bulletins(call(() -> api.bulletinBoard(groupId, afterId, 50)));
+    }
+
+    /**
+     * Provenance lineage of one FlowFile (by uuid), all the way back to where its data entered NiFi. NiFi computes
+     * lineage per FlowFile, so events that had parents (JOIN, FORK, CLONE) are expanded with PARENTS requests until
+     * every ancestor is included.
+     */
+    public Lineage lineage(String flowFileUuid) {
+        List<JsonNode> lineages = new ArrayList<>();
+        lineages.add(computeLineage(lineageRequest("FLOWFILE").put("uuid", flowFileUuid)));
+        Set<String> expanded = new HashSet<>();
+        for (int round = 0; round < MAX_LINEAGE_ROUNDS; round++) {
+            List<String> toExpand = NifiMapper.eventsWithParents(lineages).stream()
+                    .filter(expanded::add)
+                    .limit(20)
+                    .toList();
+            if (toExpand.isEmpty()) {
+                break;
+            }
+            for (String eventId : toExpand) {
+                lineages.add(computeLineage(lineageRequest("PARENTS").put("eventId", Long.parseLong(eventId))));
+            }
+        }
+        Map<String, JsonNode> details = new HashMap<>();
+        return NifiMapper.lineage(flowFileUuid, lineages,
+                id -> details.computeIfAbsent(id, key -> call(() -> api.provenanceEvent(key))));
+    }
+
+    private static ObjectNode lineageRequest(String type) {
+        ObjectNode body = JSON.createObjectNode();
+        return body.putObject("lineage").putObject("request").put("lineageRequestType", type);
+    }
+
+    /** Submits a lineage request (built by {@link #lineageRequest}), waits for it and deletes it. */
+    private JsonNode computeLineage(ObjectNode request) {
+        ObjectNode body = JSON.createObjectNode();
+        body.putObject("lineage").set("request", request);
+        String requestId = call(() -> api.submitLineage(body)).path("lineage").path("id").asText();
+        AtomicReference<JsonNode> result = new AtomicReference<>();
+        try {
+            waitUntil(Duration.ofSeconds(20), () -> {
+                result.set(call(() -> api.lineage(requestId)));
+                return result.get().path("lineage").path("finished").asBoolean();
+            });
+        } finally {
+            call(() -> api.deleteLineage(requestId));
+        }
+        return result.get();
     }
 
     public void start(String groupId) {

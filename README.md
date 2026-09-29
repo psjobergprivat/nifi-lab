@@ -6,6 +6,19 @@ the lab UI, watch it move through the processors, and jump into the NiFi UI to s
 See `requirements/functional_requirements.txt` for the scenarios and `requirements/technical_design.md` for how
 the lab is built.
 
+| # | Scenario | Shows |
+|---|---|---|
+| 01 | Hello FlowFile | content + attributes, processors, connections |
+| 02 | Content-based routing | EvaluateJsonPath, RouteOnAttribute, cloning to several relationships |
+| 03 | Format conversion | record readers/writers, controller services, QueryRecord SQL |
+| 04 | Split and merge | SplitText, fragment attributes, MergeContent Defragment |
+| 06 | Error handling and retry | InvokeHTTP outcomes, built-in retry with penalties, dead letter + replay |
+| 07 | Back pressure | queue thresholds, back pressure travelling upstream, 503 to the producer |
+| 08 | Provenance and lineage | FORK/JOIN events, bin-packing merge, lineage graph of any output |
+
+Every output item has **Trace** (its provenance lineage) and **Send again**. Scenarios can have **controls**
+(sliders/selects in `scenario.yaml`) that drive the lab's mock service and producer.
+
 ## Run the whole lab
 
 ```bash
@@ -34,16 +47,21 @@ backend reaches the scenarios' ListenHTTP ports through `localhost` (compose pub
 
 ## Adding a scenario
 
-1. Build the flow in the NiFi UI inside a process group. It should:
-   - start with a `ListenHTTP` processor on a port no other scenario uses, with
-     *HTTP Headers for Attributes* = `lab\..*`;
-   - end with `AttributesToJSON` followed by `InvokeHTTP` that POSTs to `${lab.sink.url}/<lane>` with a dynamic
-     property `lab-attributes` = `${JSONAttributes:base64Encode()}`.
-2. Right-click the group → *Download flow definition* and save it as
-   `lab-backend/src/main/resources/scenarios/<id>/flow.json`.
+1. Write the flow in `scripts/flowgen/scenarios.py` and run `python3 scripts/flowgen/scenarios.py`. The helpers
+   follow the lab's conventions:
+   - `listen(...)`: a `ListenHTTP` on a port no other scenario uses, turning `lab.*` request headers into
+     attributes;
+   - `set_lane(...)`: sets `lab.lane`, the output lane;
+   - `deliver(...)`: `AttributesToJSON` + `InvokeHTTP` posting to `${lab.sink.url}/${lab.lane}`;
+   - flows can call the mock service at `${lab.backend.url}/mock/${lab.scenario}/service`.
+
+   (You can also build the flow in the NiFi UI and use *Download flow definition*. Property names must be the
+   NiFi 2.x names; `GET /nifi-api/flow/processor-definition/org.apache.nifi/<nar>/2.12.0/<type>` lists them.)
+2. The generated file is `lab-backend/src/main/resources/scenarios/<id>/flow.json`.
 3. Write `scenario.yaml` next to it (copy `hello-flowfile/scenario.yaml`), and add `<id>` to `scenarios/index.yaml`.
 4. Publish the ListenHTTP port in `docker-compose.yml` (needed for dev mode).
-5. Run `./mvnw test`: `ScenarioRegistryTest` checks that the YAML and the flow match (ports, component names).
+5. Run `./mvnw test`: `ScenarioRegistryTest` checks that the YAML and the flow match (ports, component names,
+   lanes).
 
 When `flow.json` changes, the backend replaces the scenario's process group in NiFi on its next start. Set
 `lab.force-redeploy=true` to replace the groups even when `flow.json` has not changed.

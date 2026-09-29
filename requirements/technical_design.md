@@ -163,3 +163,22 @@ file-based authorizer setup and stays optional.
   backend can start before NiFi.
 - **NiFi 2 property names.** Some properties were renamed in NiFi 2 (e.g. ListenHTTP's
   *HTTP Headers for Attributes*). Hand-written flow.json files must use the 2.x names.
+
+## Implementation notes (Phase 2)
+- **Flows are generated.** `scripts/flowgen` builds each `flow.json` from Python, using the helpers
+  `listen` / `set_lane` / `deliver`. Before committing, every generated flow was imported into NiFi 2.12 and
+  every component came up valid.
+- **Controls.** `scenario.yaml` declares sliders and selects. `ControlStore` keeps their current values
+  (reset restores the defaults) and pushes changes to the browser.
+- **Mock service** (`/mock/<scenario>/service`). Its behaviour follows the controls `service.mode`,
+  `service.failure-rate` and `service.latency-ms`. It counts attempts per trace id, and every call is published
+  to the live stream, so retries become visible.
+- **Producer.** For scenarios with a `producer.rate` control, the backend posts N events per second to
+  ListenHTTP and counts how many are accepted and how many are refused with 503 (back pressure).
+- **Lineage** (`GET /api/lineage/<flowFileUuid>`). NiFi computes lineage for one FlowFile only. The backend
+  therefore also sends a PARENTS request for every event that has parents (JOIN, FORK, CLONE) until the graph
+  reaches the data's origin. It then fetches each event's details (component name, attribute changes) and
+  joins links that pass through FLOWFILE nodes into event-to-event links.
+- **Headers.** Besides `lab.trace.id` / `lab.scenario` / `lab.sink.url`, input carries `lab.backend.url`, so
+  flows can reach the mock service. HTTP header names are sent in lower case, because ListenHTTP's
+  `lab\..*` pattern is case-sensitive.

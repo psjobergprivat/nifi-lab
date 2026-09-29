@@ -662,3 +662,222 @@ textarea:focus {
 .bulletin .badge {
   margin-left: 0.4rem;
 }
+
+/* --- phase 2: controls, producer, service calls, lineage ----------------------------------------- */
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.control-label {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 600;
+}
+
+.control input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.control select {
+  font: inherit;
+  padding: 0.35rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.stats {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.stat {
+  flex: 1;
+  min-width: 70px;
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem;
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.stat strong {
+  font-size: 1.3rem;
+}
+
+.stat span {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.stat.ok strong {
+  color: var(--ok);
+}
+
+.stat.error strong {
+  color: var(--danger);
+}
+
+.calls {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.calls th,
+.calls td {
+  text-align: left;
+  padding: 0.25rem 0.4rem;
+  border-top: 1px solid var(--border);
+}
+
+.calls th {
+  color: var(--muted);
+  font-weight: 600;
+  border-top: none;
+}
+
+.item-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.item-actions .spacer {
+  flex: 1;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 24, 40, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  z-index: 100;
+}
+
+.modal {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  width: min(1200px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  box-shadow: 0 20px 60px rgba(16, 24, 40, 0.3);
+}
+
+.lineage-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 1rem;
+}
+
+@media (max-width: 900px) {
+  .lineage-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.lineage-canvas {
+  height: 560px;
+  background: var(--bg);
+  border-radius: 8px;
+}
+
+.lineage-details {
+  overflow: auto;
+  max-height: 560px;
+}
+
+.lineage-details h3 {
+  margin-top: 0;
+  color: var(--text);
+  text-transform: none;
+  font-size: 0.95rem;
+}
+
+.lineage-node {
+  width: 200px;
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  border-top: 4px solid var(--edge);
+  background: var(--surface);
+  cursor: pointer;
+  opacity: 0.75;
+}
+
+.lineage-node.focus {
+  opacity: 1;
+}
+
+.lineage-node.selected {
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.lineage-node.type-receive,
+.lineage-node.type-create {
+  border-top-color: var(--ok);
+}
+
+.lineage-node.type-send,
+.lineage-node.type-drop {
+  border-top-color: var(--accent);
+}
+
+.lineage-node.type-fork,
+.lineage-node.type-join,
+.lineage-node.type-clone {
+  border-top-color: var(--warning);
+}
+
+.lineage-type {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.lineage-component {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lineage-meta {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+/* Long-running scenarios produce many items: lanes and the call log scroll instead of growing the page. */
+.lane,
+.panel.scroll {
+  max-height: 720px;
+  overflow-y: auto;
+}
+
+.lane .panel-head,
+.panel.scroll .panel-head {
+  position: sticky;
+  top: -1rem;
+  background: var(--surface);
+  padding-top: 0.5rem;
+  margin-top: -0.5rem;
+  z-index: 1;
+}
