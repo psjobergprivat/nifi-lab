@@ -1,0 +1,74 @@
+id: external-systems
+order: 10
+title: Kafka and PostgreSQL
+summary: >
+  An order is published to a Kafka topic, consumed again and inserted into PostgreSQL. A separate processor polls
+  the table for new rows. Watch the order appear in each system - and the poller remember where it stopped.
+learn:
+  - PublishKafka / ConsumeKafka decouple producers from consumers through a topic
+  - Attributes can travel as Kafka message headers
+  - PutDatabaseRecord inserts records into a table using a connection pool (controller service)
+  - QueryDatabaseTableRecord fetches only new rows by remembering the highest id it has seen (processor state)
+
+input:
+  type: text
+  port: 9110
+  path: orders
+  contentType: application/json
+  placeholder: '{"orderId": "o-1", "customer": "ACME", "amount": 42.5}'
+
+samples:
+  - name: Order
+    content: '{"orderId": "k-1001", "customer": "ACME", "amount": 42.50}'
+  - name: Another order
+    content: '{"orderId": "k-1002", "customer": "Globex", "amount": 310.00}'
+  - name: Two orders
+    content: '[{"orderId": "k-1003", "customer": "Initech", "amount": 12.00}, {"orderId": "k-1004", "customer": "ACME", "amount": 7.25}]'
+
+database:
+  title: PostgreSQL table "orders"
+  query: SELECT id, order_id, customer, amount, created_at FROM orders ORDER BY id DESC LIMIT 20
+  reset: TRUNCATE orders RESTART IDENTITY
+
+stateOf:
+  - Poll new rows (every 5 s)
+
+lanes:
+  - id: published
+    title: Published to Kafka
+    description: PublishKafka succeeded (topic lab-orders)
+  - id: stored
+    title: Stored in PostgreSQL
+    description: consumed from Kafka and inserted into the orders table
+  - id: polled
+    title: Polled from PostgreSQL
+    description: new rows found by QueryDatabaseTableRecord (every 5 s)
+  - id: failed
+    title: Failed
+    description: Kafka or the database refused the data
+
+steps:
+  - title: Publish
+    component: Publish to Kafka
+    text: >
+      PublishKafka sends the order to topic lab-orders through the "Kafka connection" controller service. The
+      lab.* attributes become Kafka headers ("FlowFile Attribute Header Pattern").
+  - title: Consume
+    component: Consume from Kafka
+    text: >
+      ConsumeKafka is a separate, independent flow - it just reads the topic (consumer group nifi-lab). It turns
+      the headers back into attributes, so the lab can still follow the order.
+  - title: Insert
+    component: Insert into PostgreSQL
+    text: >
+      PutDatabaseRecord maps JSON fields to table columns (orderId -> order_id) and INSERTs each record. The
+      table below the flow shows the rows as they arrive.
+  - title: Poll
+    component: Poll new rows (every 5 s)
+    text: >
+      QueryDatabaseTableRecord selects rows with an id greater than the highest one it has seen, and stores that
+      id in its processor state (see Processor state). Each row is returned once - send another order and only
+      the new row is polled.
+  - title: Deliver
+    component: Deliver to lab
+    text: Reset empties the table and the poller's state - then everything starts from the beginning again.

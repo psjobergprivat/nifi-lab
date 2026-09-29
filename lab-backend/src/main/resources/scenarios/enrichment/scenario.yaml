@@ -1,0 +1,74 @@
+id: enrichment
+order: 5
+title: Enrichment and lookup
+summary: >
+  Orders only carry a customer id. NiFi looks each one up in a customer service and adds the customer's name,
+  tier and country to the record. Edit the customer table and send the same order again to see the effect.
+learn:
+  - LookupRecord enriches records using a lookup service
+  - Lookup services are controller services - here RestLookupService, which calls an HTTP API
+  - Records that find no match can be routed separately ("unmatched")
+  - The lookup happens per record, when the data passes - changes to the source show up immediately
+
+input:
+  type: text
+  port: 9105
+  path: orders
+  contentType: application/json
+  placeholder: '{"orderId": "o-1", "customerId": "c-100", "amount": 50}'
+
+samples:
+  - name: ACME order
+    content: '{"orderId": "o-2001", "customerId": "c-100", "amount": 120}'
+  - name: Globex order
+    content: '{"orderId": "o-2002", "customerId": "c-200", "amount": 75}'
+  - name: Unknown customer
+    content: '{"orderId": "o-2003", "customerId": "c-999", "amount": 10}'
+  - name: Batch of three
+    content: '[{"orderId": "o-2004", "customerId": "c-300", "amount": 5}, {"orderId": "o-2005", "customerId": "c-100", "amount": 60}, {"orderId": "o-2006", "customerId": "c-404", "amount": 1}]'
+
+lookup:
+  key: customerId
+  columns: [customerId, name, tier, country]
+  rows:
+    - {customerId: c-100, name: ACME Corporation, tier: gold, country: SE}
+    - {customerId: c-200, name: Globex, tier: silver, country: US}
+    - {customerId: c-300, name: Initech, tier: bronze, country: DE}
+
+lanes:
+  - id: enriched
+    title: Enriched
+    description: the customer was found - see the new "customer" field
+  - id: unknown-customer
+    title: Unknown customer
+    description: no row for this customerId - add it to the table and send again
+  - id: failed
+    title: Failed
+    description: not valid JSON, or the lookup service could not be reached
+
+steps:
+  - title: Receive
+    component: Receive orders
+    text: One order, or a JSON array of orders (each is a record).
+  - title: Look up the customer
+    component: Enrich with customer
+    text: >
+      LookupRecord reads each record, takes /customerId, asks the "Customer lookup" service for it and writes the
+      result into /customer. Records are split into "matched" and "unmatched" - a batch with one unknown
+      customer produces one FlowFile in each lane.
+  - title: The lookup service
+    component: Enrich with customer
+    text: >
+      "Customer lookup" is a RestLookupService controller service: it calls
+      ${lab.backend.url}/mock/enrichment/lookup/<customerId> - the lab answers from the table on this page.
+      Each call shows up in the Service calls panel - the first record of a FlowFile is looked up twice, because
+      LookupRecord also uses it to work out the schema of its output. Open the group's Controller Services in
+      NiFi to see the service.
+  - title: Change the source
+    component: Lane = unknown-customer
+    text: >
+      Send "Unknown customer" (c-999): it lands in Unknown customer. Now add a row for c-999 in the Lookup table
+      and use "Send again" - this time it is enriched. NiFi did not change; the data it looks up did.
+  - title: Deliver
+    component: Deliver to lab
+    text: Compare the input in the Input panel with the enriched output.

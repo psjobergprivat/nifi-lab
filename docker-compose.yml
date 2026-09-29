@@ -6,7 +6,8 @@ name: nifi-lab
 
 services:
   nifi:
-    image: docker.io/apache/nifi:2.12.0
+    build: nifi                       # apache/nifi:2.12.0 + PostgreSQL JDBC driver
+    image: localhost/nifi-lab/nifi:2.12.0
     hostname: nifi
     ports:
       - "8443:8443"   # NiFi UI / REST API
@@ -15,9 +16,14 @@ services:
       - "9102:9102"
       - "9103:9103"
       - "9104:9104"
+      - "9105:9105"
       - "9106:9106"
       - "9107:9107"
       - "9108:9108"
+      - "9109:9109"
+      - "9110:9110"
+      - "9111:9111"
+      - "9112:9112"
     environment:
       SINGLE_USER_CREDENTIALS_USERNAME: ${NIFI_USERNAME:-nifilab}
       SINGLE_USER_CREDENTIALS_PASSWORD: ${NIFI_PASSWORD:-nifilabpassword}
@@ -25,8 +31,13 @@ services:
       NIFI_WEB_PROXY_HOST: localhost:8443,nifi:8443
       NIFI_JVM_HEAP_INIT: 1g
       NIFI_JVM_HEAP_MAX: 2g
+      # Where flows reach the lab backend when a FlowFile does not carry lab.* attributes (generated data,
+      # Kafka, database polling). Flows read it with ${LAB_BACKEND_URL}.
+      LAB_BACKEND_URL: http://lab-backend:8080
     extra_hosts:
-      # lets flows call back to a backend running on the host in dev mode
+      # "lab-backend" is the host, so flows reach the backend on its published port 8080 both when it runs
+      # in compose and when it runs on the host in dev mode.
+      - "lab-backend:host-gateway"
       - "host.docker.internal:host-gateway"
     volumes:
       - nifi-conf:/opt/nifi/nifi-current/conf
@@ -34,6 +45,37 @@ services:
       - nifi-flowfiles:/opt/nifi/nifi-current/flowfile_repository
       - nifi-content:/opt/nifi/nifi-current/content_repository
       - nifi-provenance:/opt/nifi/nifi-current/provenance_repository
+
+  kafka:
+    image: docker.io/apache/kafka:3.9.1
+    hostname: kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+
+  postgres:
+    image: docker.io/library/postgres:16-alpine
+    hostname: postgres
+    ports:
+      - "15432:5432"   # the backend reads the table (dev mode: from the host)
+    environment:
+      POSTGRES_DB: lab
+      POSTGRES_USER: lab
+      POSTGRES_PASSWORD: lab
+      POSTGRES_HOST_AUTH_METHOD: trust   # lab only: NiFi's connection pool needs no password
+    volumes:
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - postgres-data:/var/lib/postgresql/data
 
   lab-backend:
     build:
@@ -49,8 +91,10 @@ services:
       LAB_NIFI_PASSWORD: ${NIFI_PASSWORD:-nifilabpassword}
       LAB_NIFI_LISTEN_HOST: nifi
       LAB_SINK_BASE_URL: http://lab-backend:8080
+      LAB_DATABASE_URL: jdbc:postgresql://postgres:5432/lab
     depends_on:
       - nifi
+      - postgres
 
 volumes:
   nifi-conf:
@@ -58,3 +102,4 @@ volumes:
   nifi-flowfiles:
   nifi-content:
   nifi-provenance:
+  postgres-data:

@@ -1,0 +1,790 @@
+{
+  "flowContents": {
+    "identifier": "59895b0f-b8d1-5270-b70b-d951b5637bcb",
+    "name": "Parameters and environments",
+    "comments": "",
+    "position": {
+      "x": 0.0,
+      "y": 0.0
+    },
+    "processGroups": [],
+    "remoteProcessGroups": [],
+    "processors": [
+      {
+        "identifier": "c7dc66cd-7fb1-5cd6-b9ee-aa95826704e4",
+        "name": "Receive order",
+        "comments": "",
+        "position": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "type": "org.apache.nifi.processors.standard.ListenHTTP",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "nifi-standard-nar",
+          "version": "2.12.0"
+        },
+        "properties": {
+          "Base Path": "orders",
+          "Listening Port": "9112",
+          "HTTP Headers for Attributes": "lab\\..*",
+          "Return Code": "200"
+        },
+        "propertyDescriptors": {},
+        "style": {},
+        "schedulingPeriod": "0 sec",
+        "schedulingStrategy": "TIMER_DRIVEN",
+        "executionNode": "ALL",
+        "penaltyDuration": "30 sec",
+        "yieldDuration": "1 sec",
+        "bulletinLevel": "WARN",
+        "runDurationMillis": 0,
+        "concurrentlySchedulableTaskCount": 1,
+        "autoTerminatedRelationships": [],
+        "scheduledState": "ENABLED",
+        "retryCount": 10,
+        "retriedRelationships": [],
+        "backoffMechanism": "PENALIZE_FLOWFILE",
+        "maxBackoffPeriod": "10 mins",
+        "componentType": "PROCESSOR",
+        "groupIdentifier": "59895b0f-b8d1-5270-b70b-d951b5637bcb"
+      },
+      {
+        "identifier": "2d8450fe-35c4-55ca-bf6f-318fac4a5342",
+        "name": "Extract amount",
+        "comments": "",
+        "position": {
+          "x": 0.0,
+          "y": 200.0
+        },
+        "type": "org.apache.nifi.processors.standard.EvaluateJsonPath",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "nifi-standard-nar",
+          "version": "2.12.0"
+        },
+        "properties": {
+          "Destination": "flowfile-attribute",
+          "Return Type": "scalar",
+          "Path Not Found Behavior": "ignore",
+          "order.amount": "$.amount"
+        },
+        "propertyDescriptors": {
+          "order.amount": {
+            "name": "order.amount",
+            "displayName": "order.amount",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": true
+          }
+        },
+        "style": {},
+        "schedulingPeriod": "0 sec",
+        "schedulingStrategy": "TIMER_DRIVEN",
+        "executionNode": "ALL",
+        "penaltyDuration": "30 sec",
+        "yieldDuration": "1 sec",
+        "bulletinLevel": "WARN",
+        "runDurationMillis": 0,
+        "concurrentlySchedulableTaskCount": 1,
+        "autoTerminatedRelationships": [
+          "failure",
+          "unmatched"
+        ],
+        "scheduledState": "ENABLED",
+        "retryCount": 10,
+        "retriedRelationships": [],
+        "backoffMechanism": "PENALIZE_FLOWFILE",
+        "maxBackoffPeriod": "10 mins",
+        "componentType": "PROCESSOR",
+        "groupIdentifier": "59895b0f-b8d1-5270-b70b-d951b5637bcb"
+      },
+      {
+        "identifier": "60653d25-60a5-5d42-9273-d63fbdbf52ce",
+        "name": "Apply environment",
+        "comments": "",
+        "position": {
+          "x": 0.0,
+          "y": 400.0
+        },
+        "type": "org.apache.nifi.processors.attributes.UpdateAttribute",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "nifi-update-attribute-nar",
+          "version": "2.12.0"
+        },
+        "properties": {
+          "env.name": "#{environment}",
+          "env.threshold": "#{threshold}"
+        },
+        "propertyDescriptors": {
+          "env.name": {
+            "name": "env.name",
+            "displayName": "env.name",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": true
+          },
+          "env.threshold": {
+            "name": "env.threshold",
+            "displayName": "env.threshold",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": true
+          }
+        },
+        "style": {},
+        "schedulingPeriod": "0 sec",
+        "schedulingStrategy": "TIMER_DRIVEN",
+        "executionNode": "ALL",
+        "penaltyDuration": "30 sec",
+        "yieldDuration": "1 sec",
+        "bulletinLevel": "WARN",
+        "runDurationMillis": 0,
+        "concurrentlySchedulableTaskCount": 1,
+        "autoTerminatedRelationships": [],
+        "scheduledState": "ENABLED",
+        "retryCount": 10,
+        "retriedRelationships": [],
+        "backoffMechanism": "PENALIZE_FLOWFILE",
+        "maxBackoffPeriod": "10 mins",
+        "componentType": "PROCESSOR",
+        "groupIdentifier": "59895b0f-b8d1-5270-b70b-d951b5637bcb"
+      },
+      {
+        "identifier": "c40b215b-ed2f-5822-b6b3-f4555780c923",
+        "name": "Call pricing service",
+        "comments": "",
+        "position": {
+          "x": 0.0,
+          "y": 600.0
+        },
+        "type": "org.apache.nifi.processors.standard.InvokeHTTP",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "nifi-standard-nar",
+          "version": "2.12.0"
+        },
+        "properties": {
+          "HTTP Method": "POST",
+          "HTTP URL": "${lab.backend.url}/mock/${lab.scenario}/service",
+          "Request Header Attributes Pattern": "lab\\.trace\\.id",
+          "X-Api-Token": "#{api.token}"
+        },
+        "propertyDescriptors": {
+          "X-Api-Token": {
+            "name": "X-Api-Token",
+            "displayName": "X-Api-Token",
+            "identifiesControllerService": false,
+            "sensitive": true,
+            "dynamic": true
+          }
+        },
+        "style": {},
+        "schedulingPeriod": "0 sec",
+        "schedulingStrategy": "TIMER_DRIVEN",
+        "executionNode": "ALL",
+        "penaltyDuration": "30 sec",
+        "yieldDuration": "1 sec",
+        "bulletinLevel": "WARN",
+        "runDurationMillis": 0,
+        "concurrentlySchedulableTaskCount": 1,
+        "autoTerminatedRelationships": [
+          "Original",
+          "Retry",
+          "No Retry",
+          "Failure"
+        ],
+        "scheduledState": "ENABLED",
+        "retryCount": 10,
+        "retriedRelationships": [],
+        "backoffMechanism": "PENALIZE_FLOWFILE",
+        "maxBackoffPeriod": "10 mins",
+        "componentType": "PROCESSOR",
+        "groupIdentifier": "59895b0f-b8d1-5270-b70b-d951b5637bcb"
+      },
+      {
+        "identifier": "fe072b62-956c-5cc9-b704-ed99dd3cb4c5",
+        "name": "Above threshold?",
+        "comments": "",
+        "position": {
+          "x": 0.0,
+          "y": 800.0
+        },
+        "type": "org.apache.nifi.processors.standard.RouteOnAttribute",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "nifi-standard-nar",
+          "version": "2.12.0"
+        },
+        "properties": {
+          "Routing Strategy": "Route to Property name",
+          "above": "${order.amount:toDecimal():gt(#{threshold})}"
+        },
+        "propertyDescriptors": {
+          "above": {
+            "name": "above",
+            "displayName": "above",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": true
+          }
+        },
+        "style": {},
+        "schedulingPeriod": "0 sec",
+        "schedulingStrategy": "TIMER_DRIVEN",
+        "executionNode": "ALL",
+        "penaltyDuration": "30 sec",
+        "yieldDuration": "1 sec",
+        "bulletinLevel": "WARN",
+        "runDurationMillis": 0,
+        "concurrentlySchedulableTaskCount": 1,
+        "autoTerminatedRelationships": [],
+        "scheduledState": "ENABLED",
+        "retryCount": 10,
+        "retriedRelationships": [],
+        "backoffMechanism": "PENALIZE_FLOWFILE",
+        "maxBackoffPeriod": "10 mins",
+        "componentType": "PROCESSOR",
+        "groupIdentifier": "59895b0f-b8d1-5270-b70b-d951b5637bcb"
+      },
+      {
+        "identifier": "a095e0b1-c24b-50e4-ac01-59f0c330e07d",
+        "name": "Lane = above-threshold",
+        "comments": "",
+        "position": {
+          "x": 0.0,
+          "y": 1000.0
+        },
+        "type": "org.apache.nifi.processors.attributes.UpdateAttribute",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "nifi-update-attribute-nar",
+          "version": "2.12.0"
+        },
+        "properties": {
+          "lab.lane": "above-threshold"
+        },
+        "propertyDescriptors": {
+          "lab.lane": {
+            "name": "lab.lane",
+            "displayName": "lab.lane",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": true
+          }
+        },
+        "style": {},
+        "schedulingPeriod": "0 sec",
+        "schedulingStrategy": "TIMER_DRIVEN",
+        "executionNode": "ALL",
+        "penaltyDuration": "30 sec",
+        "yieldDuration": "1 sec",
+        "bulletinLevel": "WARN",
+        "runDurationMillis": 0,
+        "concurrentlySchedulableTaskCount": 1,
+        "autoTerminatedRelationships": [],
+        "scheduledState": "ENABLED",
+        "retryCount": 10,
+        "retriedRelationships": [],
+        "backoffMechanism": "PENALIZE_FLOWFILE",
+        "maxBackoffPeriod": "10 mins",
+        "componentType": "PROCESSOR",
+        "groupIdentifier": "59895b0f-b8d1-5270-b70b-d951b5637bcb"
+      },
+      {
+        "identifier": "dc01a281-b0c5-58e7-b303-f7398b990bbf",
+        "name": "Lane = below-threshold",
+        "comments": "",
+        "position": {
+          "x": 450.0,
+          "y": 1000.0
+        },
+        "type": "org.apache.nifi.processors.attributes.UpdateAttribute",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "nifi-update-attribute-nar",
+          "version": "2.12.0"
+        },
+        "properties": {
+          "lab.lane": "below-threshold"
+        },
+        "propertyDescriptors": {
+          "lab.lane": {
+            "name": "lab.lane",
+            "displayName": "lab.lane",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": true
+          }
+        },
+        "style": {},
+        "schedulingPeriod": "0 sec",
+        "schedulingStrategy": "TIMER_DRIVEN",
+        "executionNode": "ALL",
+        "penaltyDuration": "30 sec",
+        "yieldDuration": "1 sec",
+        "bulletinLevel": "WARN",
+        "runDurationMillis": 0,
+        "concurrentlySchedulableTaskCount": 1,
+        "autoTerminatedRelationships": [],
+        "scheduledState": "ENABLED",
+        "retryCount": 10,
+        "retriedRelationships": [],
+        "backoffMechanism": "PENALIZE_FLOWFILE",
+        "maxBackoffPeriod": "10 mins",
+        "componentType": "PROCESSOR",
+        "groupIdentifier": "59895b0f-b8d1-5270-b70b-d951b5637bcb"
+      },
+      {
+        "identifier": "da5bfea9-7719-5bbf-b34c-1e8f49b32e5e",
+        "name": "Collect attributes",
+        "comments": "",
+        "position": {
+          "x": 0.0,
+          "y": 1200.0
+        },
+        "type": "org.apache.nifi.processors.standard.AttributesToJSON",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "nifi-standard-nar",
+          "version": "2.12.0"
+        },
+        "properties": {
+          "Destination": "flowfile-attribute",
+          "Include Core Attributes": "true"
+        },
+        "propertyDescriptors": {},
+        "style": {},
+        "schedulingPeriod": "0 sec",
+        "schedulingStrategy": "TIMER_DRIVEN",
+        "executionNode": "ALL",
+        "penaltyDuration": "30 sec",
+        "yieldDuration": "1 sec",
+        "bulletinLevel": "WARN",
+        "runDurationMillis": 0,
+        "concurrentlySchedulableTaskCount": 1,
+        "autoTerminatedRelationships": [
+          "failure"
+        ],
+        "scheduledState": "ENABLED",
+        "retryCount": 10,
+        "retriedRelationships": [],
+        "backoffMechanism": "PENALIZE_FLOWFILE",
+        "maxBackoffPeriod": "10 mins",
+        "componentType": "PROCESSOR",
+        "groupIdentifier": "59895b0f-b8d1-5270-b70b-d951b5637bcb"
+      },
+      {
+        "identifier": "ac18a358-0e2b-51ac-81a7-c7fc7ddffcc5",
+        "name": "Deliver to lab",
+        "comments": "",
+        "position": {
+          "x": 0.0,
+          "y": 1400.0
+        },
+        "type": "org.apache.nifi.processors.standard.InvokeHTTP",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "nifi-standard-nar",
+          "version": "2.12.0"
+        },
+        "properties": {
+          "HTTP Method": "POST",
+          "HTTP URL": "${lab.sink.url}/${lab.lane}",
+          "lab-attributes": "${JSONAttributes:base64Encode()}"
+        },
+        "propertyDescriptors": {
+          "lab-attributes": {
+            "name": "lab-attributes",
+            "displayName": "lab-attributes",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": true
+          }
+        },
+        "style": {},
+        "schedulingPeriod": "0 sec",
+        "schedulingStrategy": "TIMER_DRIVEN",
+        "executionNode": "ALL",
+        "penaltyDuration": "30 sec",
+        "yieldDuration": "1 sec",
+        "bulletinLevel": "WARN",
+        "runDurationMillis": 0,
+        "concurrentlySchedulableTaskCount": 1,
+        "autoTerminatedRelationships": [
+          "Original",
+          "Response",
+          "Retry",
+          "No Retry",
+          "Failure"
+        ],
+        "scheduledState": "ENABLED",
+        "retryCount": 10,
+        "retriedRelationships": [],
+        "backoffMechanism": "PENALIZE_FLOWFILE",
+        "maxBackoffPeriod": "10 mins",
+        "componentType": "PROCESSOR",
+        "groupIdentifier": "59895b0f-b8d1-5270-b70b-d951b5637bcb"
+      }
+    ],
+    "inputPorts": [],
+    "outputPorts": [],
+    "connections": [
+      {
+        "identifier": "d652f224-605f-5863-9cef-2e7d7ff695e6",
+        "name": "",
+        "comments": "",
+        "source": {
+          "id": "da5bfea9-7719-5bbf-b34c-1e8f49b32e5e",
+          "type": "PROCESSOR",
+          "groupId": "59895b0f-b8d1-5270-b70b-d951b5637bcb",
+          "name": "Collect attributes"
+        },
+        "destination": {
+          "id": "ac18a358-0e2b-51ac-81a7-c7fc7ddffcc5",
+          "type": "PROCESSOR",
+          "groupId": "59895b0f-b8d1-5270-b70b-d951b5637bcb",
+          "name": "Deliver to lab"
+        },
+        "labelIndex": 1,
+        "zIndex": 0,
+        "selectedRelationships": [
+          "success"
+        ],
+        "backPressureObjectThreshold": 10000,
+        "backPressureDataSizeThreshold": "1 GB",
+        "flowFileExpiration": "0 sec",
+        "prioritizers": [],
+        "bends": [],
+        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+        "partitioningAttribute": "",
+        "loadBalanceCompression": "DO_NOT_COMPRESS",
+        "componentType": "CONNECTION",
+        "groupIdentifier": "59895b0f-b8d1-5270-b70b-d951b5637bcb"
+      },
+      {
+        "identifier": "cb4892c1-dcc6-53ca-9613-f645b9853071",
+        "name": "",
+        "comments": "",
+        "source": {
+          "id": "c7dc66cd-7fb1-5cd6-b9ee-aa95826704e4",
+          "type": "PROCESSOR",
+          "groupId": "59895b0f-b8d1-5270-b70b-d951b5637bcb",
+          "name": "Receive order"
+        },
+        "destination": {
+          "id": "2d8450fe-35c4-55ca-bf6f-318fac4a5342",
+          "type": "PROCESSOR",
+          "groupId": "59895b0f-b8d1-5270-b70b-d951b5637bcb",
+          "name": "Extract amount"
+        },
+        "labelIndex": 1,
+        "zIndex": 0,
+        "selectedRelationships": [
+          "success"
+        ],
+        "backPressureObjectThreshold": 10000,
+        "backPressureDataSizeThreshold": "1 GB",
+        "flowFileExpiration": "0 sec",
+        "prioritizers": [],
+        "bends": [],
+        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+        "partitioningAttribute": "",
+        "loadBalanceCompression": "DO_NOT_COMPRESS",
+        "componentType": "CONNECTION",
+        "groupIdentifier": "59895b0f-b8d1-5270-b70b-d951b5637bcb"
+      },
+      {
+        "identifier": "7e02ca0c-286e-54c9-a563-47aabafc0744",
+        "name": "",
+        "comments": "",
+        "source": {
+          "id": "2d8450fe-35c4-55ca-bf6f-318fac4a5342",
+          "type": "PROCESSOR",
+          "groupId": "59895b0f-b8d1-5270-b70b-d951b5637bcb",
+          "name": "Extract amount"
+        },
+        "destination": {
+          "id": "60653d25-60a5-5d42-9273-d63fbdbf52ce",
+          "type": "PROCESSOR",
+          "groupId": "59895b0f-b8d1-5270-b70b-d951b5637bcb",
+          "name": "Apply environment"
+        },
+        "labelIndex": 1,
+        "zIndex": 0,
+        "selectedRelationships": [
+          "matched"
+        ],
+        "backPressureObjectThreshold": 10000,
+        "backPressureDataSizeThreshold": "1 GB",
+        "flowFileExpiration": "0 sec",
+        "prioritizers": [],
+        "bends": [],
+        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+        "partitioningAttribute": "",
+        "loadBalanceCompression": "DO_NOT_COMPRESS",
+        "componentType": "CONNECTION",
+        "groupIdentifier": "59895b0f-b8d1-5270-b70b-d951b5637bcb"
+      },
+      {
+        "identifier": "c9025c7f-8d57-5dab-99e3-424d018f051d",
+        "name": "",
+        "comments": "",
+        "source": {
+          "id": "60653d25-60a5-5d42-9273-d63fbdbf52ce",
+          "type": "PROCESSOR",
+          "groupId": "59895b0f-b8d1-5270-b70b-d951b5637bcb",
+          "name": "Apply environment"
+        },
+        "destination": {
+          "id": "c40b215b-ed2f-5822-b6b3-f4555780c923",
+          "type": "PROCESSOR",
+          "groupId": "59895b0f-b8d1-5270-b70b-d951b5637bcb",
+          "name": "Call pricing service"
+        },
+        "labelIndex": 1,
+        "zIndex": 0,
+        "selectedRelationships": [
+          "success"
+        ],
+        "backPressureObjectThreshold": 10000,
+        "backPressureDataSizeThreshold": "1 GB",
+        "flowFileExpiration": "0 sec",
+        "prioritizers": [],
+        "bends": [],
+        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+        "partitioningAttribute": "",
+        "loadBalanceCompression": "DO_NOT_COMPRESS",
+        "componentType": "CONNECTION",
+        "groupIdentifier": "59895b0f-b8d1-5270-b70b-d951b5637bcb"
+      },
+      {
+        "identifier": "67b578c8-b719-5a37-aebf-a8113c1b513c",
+        "name": "",
+        "comments": "",
+        "source": {
+          "id": "c40b215b-ed2f-5822-b6b3-f4555780c923",
+          "type": "PROCESSOR",
+          "groupId": "59895b0f-b8d1-5270-b70b-d951b5637bcb",
+          "name": "Call pricing service"
+        },
+        "destination": {
+          "id": "fe072b62-956c-5cc9-b704-ed99dd3cb4c5",
+          "type": "PROCESSOR",
+          "groupId": "59895b0f-b8d1-5270-b70b-d951b5637bcb",
+          "name": "Above threshold?"
+        },
+        "labelIndex": 1,
+        "zIndex": 0,
+        "selectedRelationships": [
+          "Response"
+        ],
+        "backPressureObjectThreshold": 10000,
+        "backPressureDataSizeThreshold": "1 GB",
+        "flowFileExpiration": "0 sec",
+        "prioritizers": [],
+        "bends": [],
+        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+        "partitioningAttribute": "",
+        "loadBalanceCompression": "DO_NOT_COMPRESS",
+        "componentType": "CONNECTION",
+        "groupIdentifier": "59895b0f-b8d1-5270-b70b-d951b5637bcb"
+      },
+      {
+        "identifier": "f805c53a-142f-5134-9eb0-79d9b0bddd33",
+        "name": "",
+        "comments": "",
+        "source": {
+          "id": "fe072b62-956c-5cc9-b704-ed99dd3cb4c5",
+          "type": "PROCESSOR",
+          "groupId": "59895b0f-b8d1-5270-b70b-d951b5637bcb",
+          "name": "Above threshold?"
+        },
+        "destination": {
+          "id": "a095e0b1-c24b-50e4-ac01-59f0c330e07d",
+          "type": "PROCESSOR",
+          "groupId": "59895b0f-b8d1-5270-b70b-d951b5637bcb",
+          "name": "Lane = above-threshold"
+        },
+        "labelIndex": 1,
+        "zIndex": 0,
+        "selectedRelationships": [
+          "above"
+        ],
+        "backPressureObjectThreshold": 10000,
+        "backPressureDataSizeThreshold": "1 GB",
+        "flowFileExpiration": "0 sec",
+        "prioritizers": [],
+        "bends": [],
+        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+        "partitioningAttribute": "",
+        "loadBalanceCompression": "DO_NOT_COMPRESS",
+        "componentType": "CONNECTION",
+        "groupIdentifier": "59895b0f-b8d1-5270-b70b-d951b5637bcb"
+      },
+      {
+        "identifier": "f3d3c544-af26-5709-8a7d-cd7470de688d",
+        "name": "",
+        "comments": "",
+        "source": {
+          "id": "fe072b62-956c-5cc9-b704-ed99dd3cb4c5",
+          "type": "PROCESSOR",
+          "groupId": "59895b0f-b8d1-5270-b70b-d951b5637bcb",
+          "name": "Above threshold?"
+        },
+        "destination": {
+          "id": "dc01a281-b0c5-58e7-b303-f7398b990bbf",
+          "type": "PROCESSOR",
+          "groupId": "59895b0f-b8d1-5270-b70b-d951b5637bcb",
+          "name": "Lane = below-threshold"
+        },
+        "labelIndex": 1,
+        "zIndex": 0,
+        "selectedRelationships": [
+          "unmatched"
+        ],
+        "backPressureObjectThreshold": 10000,
+        "backPressureDataSizeThreshold": "1 GB",
+        "flowFileExpiration": "0 sec",
+        "prioritizers": [],
+        "bends": [],
+        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+        "partitioningAttribute": "",
+        "loadBalanceCompression": "DO_NOT_COMPRESS",
+        "componentType": "CONNECTION",
+        "groupIdentifier": "59895b0f-b8d1-5270-b70b-d951b5637bcb"
+      },
+      {
+        "identifier": "ac4b88e2-b5a6-53d9-a9d9-dd681f94a2ac",
+        "name": "",
+        "comments": "",
+        "source": {
+          "id": "a095e0b1-c24b-50e4-ac01-59f0c330e07d",
+          "type": "PROCESSOR",
+          "groupId": "59895b0f-b8d1-5270-b70b-d951b5637bcb",
+          "name": "Lane = above-threshold"
+        },
+        "destination": {
+          "id": "da5bfea9-7719-5bbf-b34c-1e8f49b32e5e",
+          "type": "PROCESSOR",
+          "groupId": "59895b0f-b8d1-5270-b70b-d951b5637bcb",
+          "name": "Collect attributes"
+        },
+        "labelIndex": 1,
+        "zIndex": 0,
+        "selectedRelationships": [
+          "success"
+        ],
+        "backPressureObjectThreshold": 10000,
+        "backPressureDataSizeThreshold": "1 GB",
+        "flowFileExpiration": "0 sec",
+        "prioritizers": [],
+        "bends": [],
+        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+        "partitioningAttribute": "",
+        "loadBalanceCompression": "DO_NOT_COMPRESS",
+        "componentType": "CONNECTION",
+        "groupIdentifier": "59895b0f-b8d1-5270-b70b-d951b5637bcb"
+      },
+      {
+        "identifier": "e8699ebe-4255-5a59-b641-60383733e34c",
+        "name": "",
+        "comments": "",
+        "source": {
+          "id": "dc01a281-b0c5-58e7-b303-f7398b990bbf",
+          "type": "PROCESSOR",
+          "groupId": "59895b0f-b8d1-5270-b70b-d951b5637bcb",
+          "name": "Lane = below-threshold"
+        },
+        "destination": {
+          "id": "da5bfea9-7719-5bbf-b34c-1e8f49b32e5e",
+          "type": "PROCESSOR",
+          "groupId": "59895b0f-b8d1-5270-b70b-d951b5637bcb",
+          "name": "Collect attributes"
+        },
+        "labelIndex": 1,
+        "zIndex": 0,
+        "selectedRelationships": [
+          "success"
+        ],
+        "backPressureObjectThreshold": 10000,
+        "backPressureDataSizeThreshold": "1 GB",
+        "flowFileExpiration": "0 sec",
+        "prioritizers": [],
+        "bends": [],
+        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+        "partitioningAttribute": "",
+        "loadBalanceCompression": "DO_NOT_COMPRESS",
+        "componentType": "CONNECTION",
+        "groupIdentifier": "59895b0f-b8d1-5270-b70b-d951b5637bcb"
+      }
+    ],
+    "labels": [
+      {
+        "identifier": "252339a0-5350-560f-9e66-79a032e1dd68",
+        "label": "#{environment}, #{threshold} and #{api.token} are parameters. The flow never changes - switch the\ngroup between the 'dev' and 'prod' parameter contexts, or change a value, and the same flow\nbehaves differently. api.token is sensitive: NiFi never shows or exports its value.",
+        "position": {
+          "x": 450.0,
+          "y": 400.0
+        },
+        "width": 560.0,
+        "height": 100.0,
+        "style": {
+          "font-size": "13px"
+        },
+        "zIndex": 0,
+        "componentType": "LABEL",
+        "groupIdentifier": "59895b0f-b8d1-5270-b70b-d951b5637bcb"
+      }
+    ],
+    "funnels": [],
+    "controllerServices": [],
+    "parameterContextName": "NiFi Lab - dev",
+    "defaultFlowFileExpiration": "0 sec",
+    "defaultBackPressureObjectThreshold": 10000,
+    "defaultBackPressureDataSizeThreshold": "1 GB",
+    "flowFileConcurrency": "UNBOUNDED",
+    "flowFileOutboundPolicy": "STREAM_WHEN_AVAILABLE",
+    "scheduledState": "ENABLED",
+    "executionEngine": "INHERITED",
+    "maxConcurrentTasks": 1,
+    "statelessFlowTimeout": "1 min",
+    "componentType": "PROCESS_GROUP"
+  },
+  "externalControllerServices": {},
+  "parameterContexts": {
+    "NiFi Lab - dev": {
+      "name": "NiFi Lab - dev",
+      "description": "",
+      "parameters": [
+        {
+          "name": "environment",
+          "description": "",
+          "sensitive": false,
+          "value": "development",
+          "provided": false
+        },
+        {
+          "name": "threshold",
+          "description": "",
+          "sensitive": false,
+          "value": "100",
+          "provided": false
+        },
+        {
+          "name": "api.token",
+          "description": "",
+          "sensitive": true,
+          "value": null,
+          "provided": false
+        }
+      ],
+      "inheritedParameterContexts": [],
+      "componentType": "PARAMETER_CONTEXT"
+    }
+  },
+  "parameterProviders": {},
+  "flowEncodingVersion": "1.0",
+  "latest": false
+}

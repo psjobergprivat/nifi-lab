@@ -55,6 +55,9 @@ public class ScenarioService {
     @Inject
     Event<ScenarioReset> resetEvent;
 
+    @Inject
+    ParameterService parameters;
+
     private final Map<String, Deployment> deployments = new ConcurrentHashMap<>();
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
 
@@ -116,6 +119,7 @@ public class ScenarioService {
                 LOG.infof("Deployed scenario %s as process group %s", scenario.id(), group.id());
             }
 
+            parameters.ensure(scenario, group.id());
             Map<String, FlowNode> components = new LinkedHashMap<>();
             nifi.graph(group.id()).nodes().forEach(n -> components.put(n.name(), n));
             Deployment deployed = new Deployment(scenario.id(), Deployment.State.DEPLOYED, group.id(), components,
@@ -140,10 +144,14 @@ public class ScenarioService {
         return update(d.with(Deployment.RunState.STOPPED));
     }
 
-    /** Back to a clean state: stopped, queues empty, processor state cleared. */
+    /**
+     * Back to a clean state: stopped, controller services disabled (in-memory caches are emptied), queues empty,
+     * processor state cleared, and the scenario's controls, lookup data, database and parameters restored.
+     */
     public Deployment reset(String scenarioId) {
         Deployment d = requireDeployed(scenarioId);
         nifi.stop(d.groupId());
+        nifi.disableControllerServices(d.groupId());
         nifi.emptyQueues(d.groupId());
         nifi.clearState(d.processorIds());
         controls.reset(scenarioId);
@@ -157,11 +165,15 @@ public class ScenarioService {
      *
      * @return the trace id
      */
-    public String sendInput(String scenarioId, String content) {
+    public String sendInput(String scenarioId, String content, String target) {
+        ScenarioDefinition.Input input = scenario(scenarioId).input();
+        if (target != null && input.targets().stream().noneMatch(t -> t.id().equals(target))) {
+            throw new ScenarioException(400, "Unknown input target " + target);
+        }
         String traceId = UUID.randomUUID().toString();
         int status;
         try {
-            status = post(scenarioId, traceId, content);
+            status = postRetryingWhileStarting(scenarioId, traceId, content, target);
         } catch (IOException e) {
             // Refused outright, or - through a container port forwarder - accepted and then dropped.
             if (e instanceof ConnectException || deployment(scenarioId).runState() != Deployment.RunState.RUNNING) {
@@ -176,21 +188,26 @@ public class ScenarioService {
         if (status / 100 != 2) {
             throw new ScenarioException(502, "NiFi rejected the input (" + status + ")");
         }
-        hub.publish("input", scenarioId, Map.of("traceId", traceId, "content", content));
+        hub.publish("input", scenarioId, Map.of("traceId", traceId, "content", content,
+                "target", target == null ? "" : target));
         return traceId;
     }
 
     /**
      * Low-level POST to the scenario's ListenHTTP processor. Lab attributes travel as HTTP headers, which ListenHTTP
      * turns into FlowFile attributes: a trace id to follow the item, where to deliver results, and the backend's
-     * base URL (for flows that call the mock service).
+     * base URL (for flows that call the mock service), and optionally the chosen input target.
      *
      * @return the HTTP status NiFi answered with (503 = back pressure)
      */
-    public int post(String scenarioId, String traceId, String content) throws IOException {
+    public int post(String scenarioId, String traceId, String content, String target) throws IOException {
         ScenarioDefinition.Input input = scenario(scenarioId).input();
         requireDeployed(scenarioId);
-        HttpRequest request = HttpRequest.newBuilder()
+        HttpRequest.Builder builder = HttpRequest.newBuilder();
+        if (target != null) {
+            builder.header("lab.target", target);
+        }
+        HttpRequest request = builder
                 .uri(URI.create("http://" + config.nifi().listenHost() + ":" + input.port() + "/" + input.path()))
                 .timeout(Duration.ofSeconds(10))
                 .header("Content-Type", input.contentType() != null ? input.contentType() : "text/plain; charset=UTF-8")
@@ -205,6 +222,29 @@ public class ScenarioService {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("Interrupted", e);
+        }
+    }
+
+    /**
+     * Right after a start (or a restart, e.g. when parameters change) ListenHTTP needs a moment before it listens;
+     * a running scenario gets a few retries instead of an error.
+     */
+    private int postRetryingWhileStarting(String scenarioId, String traceId, String content, String target)
+            throws IOException {
+        for (int attempt = 1; ; attempt++) {
+            try {
+                return post(scenarioId, traceId, content, target);
+            } catch (IOException e) {
+                if (attempt >= 6 || deployment(scenarioId).runState() != Deployment.RunState.RUNNING) {
+                    throw e;
+                }
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw e;
+                }
+            }
         }
     }
 

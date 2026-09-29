@@ -20,12 +20,38 @@ export interface ScenarioSummary {
   deployment: DeploymentView;
 }
 
+export interface InputTarget {
+  id: string;
+  label: string;
+  description: string | null;
+}
+
 export interface Input {
   type: string;
   port: number;
   path: string;
   contentType: string | null;
   placeholder: string | null;
+  targets: InputTarget[];
+}
+
+export interface LookupTable {
+  key: string;
+  columns: string[];
+  rows: Record<string, string>[];
+}
+
+export interface TableView {
+  title: string;
+  columns: string[];
+  rows: (string | null)[][];
+  error: string | null;
+}
+
+export interface ComponentState {
+  component: string;
+  componentId: string;
+  entries: { key: string; value: string; scope: string }[];
 }
 
 export interface Sample {
@@ -74,6 +100,9 @@ export interface ScenarioDetail extends ScenarioSummary {
   controls: Control[];
   controlValues: Record<string, string>;
   expectedBulletins: ExpectedBulletin[];
+  lookup: LookupTable | null;
+  databaseTitle: string | null;
+  stateOf: string[];
   links: { provenance: string; bulletins: string };
 }
 
@@ -215,7 +244,10 @@ export interface LiveEvent {
     | 'heartbeat'
     | 'controls'
     | 'service'
-    | 'producer';
+    | 'producer'
+    | 'lookup'
+    | 'database'
+    | 'state';
   scenarioId: string;
   timestamp: number;
   data: unknown;

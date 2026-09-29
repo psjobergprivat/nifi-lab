@@ -4,6 +4,9 @@ import type { FlowView, ScenarioDetail } from '../types';
 import { useLive } from '../useLive';
 import { BulletinFeed } from './BulletinFeed';
 import { ControlsPanel } from './ControlsPanel';
+import { DatabasePanel } from './DatabasePanel';
+import { LookupPanel } from './LookupPanel';
+import { StatePanel } from './StatePanel';
 import { LineageModal } from './LineageModal';
 import { ProducerPanel } from './ProducerPanel';
 import { ServiceCallsPanel } from './ServiceCallsPanel';
@@ -136,6 +139,7 @@ export function ScenarioView({ scenarioId }: { scenarioId: string }) {
             />
           )}
           {scenario.controls.some((c) => c.id === 'producer.rate') && <ProducerPanel stats={live.producer} />}
+          {scenario.lookup && <LookupPanel scenarioId={scenarioId} table={live.lookup ?? scenario.lookup} onError={setError} />}
           <StepsPanel steps={scenario.steps} learn={scenario.learn} />
         </aside>
         <section className="col">
@@ -149,7 +153,11 @@ export function ScenarioView({ scenarioId }: { scenarioId: string }) {
             {flow ? <FlowDiagram flow={flow} status={live.status} /> : <div className="empty">The flow appears here once it is deployed.</div>}
             <p className="hint">Click a processor or connection to open it in NiFi. Numbers are NiFi's 5-minute counters.</p>
           </div>
-          {scenario.controls.some((c) => c.id.startsWith('service.')) && <ServiceCallsPanel calls={live.serviceCalls} />}
+          {scenario.databaseTitle && <DatabasePanel title={scenario.databaseTitle} view={live.database} />}
+          {scenario.stateOf.length > 0 && <StatePanel names={scenario.stateOf} states={live.state} />}
+          {(scenario.controls.some((c) => c.id.startsWith('service.')) || scenario.lookup || live.serviceCalls.length > 0) && (
+            <ServiceCallsPanel calls={live.serviceCalls} />
+          )}
           <BulletinFeed bulletins={live.bulletins} expected={scenario.expectedBulletins} bulletinsLink={scenario.links.bulletins} />
         </section>
         <section className="col">

@@ -5,6 +5,11 @@ scenarios:
   - routing
   - transform
   - split-merge
+  - enrichment
   - errors-retry
   - back-pressure
   - provenance
+  - scheduling
+  - external-systems
+  - deduplication
+  - parameters

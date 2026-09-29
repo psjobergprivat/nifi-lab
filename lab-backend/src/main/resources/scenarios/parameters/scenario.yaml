@@ -1,0 +1,98 @@
+id: parameters
+order: 12
+title: Parameters and environments
+summary: >
+  The same flow, configured for different environments. Its settings are parameters - switch between the dev and
+  prod parameter contexts, or change the threshold, and see the flow behave differently without editing it.
+learn:
+  - Parameters (#{name}) keep environment-specific values out of the flow
+  - A parameter context is a named set of parameters; a process group is bound to one
+  - Sensitive parameters (passwords, tokens) are never shown or exported
+  - Changing a parameter makes NiFi restart only the components that use it
+
+input:
+  type: text
+  port: 9112
+  path: orders
+  contentType: application/json
+  placeholder: '{"orderId": "p-1", "amount": 500}'
+
+samples:
+  - name: Small order (50)
+    content: '{"orderId": "p-1001", "amount": 50}'
+  - name: Medium order (500)
+    content: '{"orderId": "p-1002", "amount": 500}'
+  - name: Large order (5000)
+    content: '{"orderId": "p-1003", "amount": 5000}'
+
+parameterContexts:
+  - id: dev
+    name: NiFi Lab - dev
+    description: Parameters for the development environment (scenario 12)
+    parameters:
+      - {name: environment, value: development, description: Name of the environment}
+      - {name: threshold, value: '100', description: Orders above this amount are 'above-threshold'}
+      - {name: api.token, value: dev-token-1234, sensitive: true, description: Token for the pricing service}
+  - id: prod
+    name: NiFi Lab - prod
+    description: Parameters for the production environment (scenario 12)
+    parameters:
+      - {name: environment, value: production, description: Name of the environment}
+      - {name: threshold, value: '1000', description: Orders above this amount are 'above-threshold'}
+      - {name: api.token, value: prod-token-9876, sensitive: true, description: Token for the pricing service}
+
+controls:
+  - id: environment
+    type: select
+    label: Parameter context
+    description: Which parameter context the process group is bound to
+    options: [dev, prod]
+    defaultValue: dev
+    target: parameter-context
+  - id: threshold
+    type: slider
+    label: threshold (in the current context)
+    description: Changes the parameter value in NiFi - the router restarts with the new value
+    min: 0
+    max: 5000
+    step: 50
+    defaultValue: '100'
+    target: parameter
+    parameter: threshold
+
+lanes:
+  - id: above-threshold
+    title: Above threshold
+    description: amount > #{threshold}
+  - id: below-threshold
+    title: Below threshold
+    description: amount <= #{threshold}
+
+steps:
+  - title: Receive
+    component: Receive order
+    text: Orders with an amount.
+  - title: Read parameters
+    component: Apply environment
+    text: >
+      UpdateAttribute copies #{environment} and #{threshold} into attributes, so every output shows which
+      environment handled it (env.name, env.threshold).
+  - title: Use a secret
+    component: Call pricing service
+    text: >
+      InvokeHTTP sends #{api.token} in the X-Api-Token header. api.token is a sensitive parameter: NiFi masks it
+      everywhere, and it is not part of exported flow definitions - the lab sets it when it deploys the flow.
+      The service shows only the first four characters of the token it received (dev-****, prod****).
+  - title: Decide
+    component: Above threshold?
+    text: >
+      ${order.amount:toDecimal():gt(#{threshold})} - Expression Language using a parameter. With dev (100) the
+      500 order is above; switch to prod (1000) and the same order is below.
+  - title: Change a value
+    component: Above threshold?
+    text: >
+      Move the threshold slider: the lab updates the parameter in NiFi, and NiFi stops and restarts just the
+      processors that use it. Open Parameter Contexts in NiFi's menu to see both contexts.
+  - title: Deliver
+    component: Deliver to lab
+    text: The flow itself never changed - only its parameters did.

@@ -1,5 +1,5 @@
 import { useEffect, useReducer } from 'react';
-import type { Bulletin, FlowStatus, LiveEvent, ProducerStats, ServiceCall, SinkItem } from './types';
+import type { Bulletin, ComponentState, FlowStatus, LiveEvent, LookupTable, ProducerStats, ServiceCall, SinkItem, TableView } from './types';
 
 /** Something the user sent, and (once it comes out the other end) how long it took. */
 export interface SentInput {
@@ -20,6 +20,9 @@ export interface LiveState {
   controlValues: Record<string, string> | null;
   serviceCalls: (ServiceCall & { at: number })[];
   producer: ProducerStats | null;
+  lookup: LookupTable | null;
+  database: TableView | null;
+  state: ComponentState[] | null;
   /** Bumped on every deployment event so the view can refetch the scenario. */
   deploymentVersion: number;
 }
@@ -37,6 +40,9 @@ const initial: LiveState = {
   controlValues: null,
   serviceCalls: [],
   producer: null,
+  lookup: null,
+  database: null,
+  state: null,
   deploymentVersion: 0,
 };
 
@@ -75,6 +81,7 @@ function reducer(state: LiveState, action: Action): LiveState {
         ...initial,
         connected: state.connected,
         controlValues: state.controlValues,
+        lookup: state.lookup,
         deploymentVersion: state.deploymentVersion + 1,
       };
     case 'deployment':
@@ -87,6 +94,12 @@ function reducer(state: LiveState, action: Action): LiveState {
     }
     case 'producer':
       return { ...state, producer: event.data as ProducerStats };
+    case 'lookup':
+      return { ...state, lookup: event.data as LookupTable };
+    case 'database':
+      return { ...state, database: event.data as TableView };
+    case 'state':
+      return { ...state, state: event.data as ComponentState[] };
     case 'nifi':
       return { ...state, nifiError: (event.data as { message: string }).message };
     default:

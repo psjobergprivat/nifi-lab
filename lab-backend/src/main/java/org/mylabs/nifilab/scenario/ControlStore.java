@@ -36,14 +36,18 @@ public class ControlStore {
         }
     }
 
-    /** Updates the given controls; unknown ids and out-of-range values are rejected. */
-    public Map<String, String> update(String scenarioId, Map<String, String> changes) {
+    /** Rejects unknown ids and out-of-range values. */
+    public void validate(String scenarioId, Map<String, String> changes) {
         ScenarioDefinition scenario = registry.find(scenarioId)
                 .orElseThrow(() -> new ScenarioException(404, "Unknown scenario " + scenarioId));
         Map<String, ScenarioDefinition.Control> controls = new LinkedHashMap<>();
         scenario.controls().forEach(c -> controls.put(c.id(), c));
         changes.forEach((id, value) -> validate(controls.get(id), id, value));
+    }
 
+    /** Updates the given controls (validated first). */
+    public Map<String, String> update(String scenarioId, Map<String, String> changes) {
+        validate(scenarioId, changes);
         values.computeIfAbsent(scenarioId, this::defaults).putAll(changes);
         Map<String, String> result = values(scenarioId);
         hub.publish("controls", scenarioId, result);

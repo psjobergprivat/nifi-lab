@@ -112,4 +112,39 @@ public interface NifiApi {
     @GET
     @Path("/provenance-events/{id}")
     JsonNode provenanceEvent(@PathParam("id") String id);
+
+    @GET
+    @Path("/processors/{id}/state")
+    JsonNode processorState(@PathParam("id") String processorId);
+
+    @GET
+    @Path("/flow/process-groups/{id}/controller-services")
+    JsonNode controllerServices(@PathParam("id") String groupId, @QueryParam("includeAncestorGroups") boolean ancestors);
+
+    @GET
+    @Path("/flow/parameter-contexts")
+    JsonNode parameterContexts();
+
+    @POST
+    @Path("/parameter-contexts")
+    @Consumes(MediaType.APPLICATION_JSON)
+    JsonNode createParameterContext(JsonNode body);
+
+    @GET
+    @Path("/parameter-contexts/{id}")
+    JsonNode parameterContext(@PathParam("id") String id);
+
+    /** Changes parameter values; NiFi stops and restarts the components that use them. */
+    @POST
+    @Path("/parameter-contexts/{id}/update-requests")
+    @Consumes(MediaType.APPLICATION_JSON)
+    JsonNode submitParameterUpdate(@PathParam("id") String id, JsonNode body);
+
+    @GET
+    @Path("/parameter-contexts/{id}/update-requests/{requestId}")
+    JsonNode parameterUpdate(@PathParam("id") String id, @PathParam("requestId") String requestId);
+
+    @DELETE
+    @Path("/parameter-contexts/{id}/update-requests/{requestId}")
+    JsonNode deleteParameterUpdate(@PathParam("id") String id, @PathParam("requestId") String requestId);
 }

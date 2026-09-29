@@ -14,11 +14,13 @@ export function InputPanel({ scenario, running, inputs, onError }: Props) {
   const [text, setText] = useState(scenario.samples[0]?.content ?? '');
   const [sending, setSending] = useState(false);
 
-  const send = async (contents: string[]) => {
+  const targets = scenario.input.targets ?? [];
+
+  const send = async (contents: string[], target?: string) => {
     setSending(true);
     try {
       for (const content of contents) {
-        await api.sendInput(scenario.id, content);
+        await api.sendInput(scenario.id, content, target);
       }
     } catch (e) {
       onError((e as Error).message);
@@ -54,10 +56,24 @@ export function InputPanel({ scenario, running, inputs, onError }: Props) {
         }}
       />
       <div className="row">
-        <button className="primary" disabled={sending || !running} onClick={() => send([text])}>
-          Send to NiFi
-        </button>
-        {scenario.samples.length > 1 && (
+        {targets.length === 0 ? (
+          <button className="primary" disabled={sending || !running} onClick={() => send([text])}>
+            Send to NiFi
+          </button>
+        ) : (
+          targets.map((t, i) => (
+            <button
+              key={t.id}
+              className={i === 0 ? 'primary' : undefined}
+              title={t.description ?? ''}
+              disabled={sending || !running}
+              onClick={() => send([text], t.id)}
+            >
+              {t.label}
+            </button>
+          ))
+        )}
+        {targets.length === 0 && scenario.samples.length > 1 && (
           <button disabled={sending || !running} onClick={() => send(scenario.samples.map((s) => s.content))}>
             Send all samples
           </button>

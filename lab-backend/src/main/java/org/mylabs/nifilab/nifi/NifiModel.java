@@ -55,4 +55,15 @@ public final class NifiModel {
 
     public record LineageLink(String sourceId, String targetId, String flowFileUuid) {
     }
+
+    /** One key/value a processor keeps in NiFi's state manager (e.g. ListFile's last listed timestamp). */
+    public record StateEntry(String key, String value, String scope) {
+    }
+
+    /** A parameter as NiFi reports it; sensitive values come back masked. */
+    public record ParameterValue(String name, String value, boolean sensitive) {
+    }
+
+    public record ParameterContextRef(String id, String name) {
+    }
 }

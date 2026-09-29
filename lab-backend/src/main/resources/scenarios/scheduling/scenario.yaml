@@ -1,0 +1,77 @@
+id: scheduling
+order: 9
+title: Scheduling and triggers
+summary: >
+  Four ways data gets into a flow: it arrives (event-driven), it is picked up by polling a folder, or NiFi creates
+  it on a timer or a cron schedule. Start the scenario and watch when each lane gets something - and why.
+learn:
+  - Every processor has a schedule - timer-driven (every N seconds) or cron-driven (at clock times)
+  - Event-driven sources (ListenHTTP) receive data the moment it is sent
+  - Polling (ListFile) only notices data when it runs, and remembers what it already listed (processor state)
+  - GenerateFlowFile creates data from nothing - useful for testing and for scheduled jobs
+
+input:
+  type: text
+  port: 9109
+  path: trigger
+  contentType: text/plain; charset=UTF-8
+  placeholder: Some text...
+  targets:
+    - id: event
+      label: Send as HTTP event
+      description: arrives immediately (event lane)
+    - id: folder
+      label: Drop into watched folder
+      description: written to a folder that is polled every 10 seconds (folder lane)
+
+samples:
+  - name: Hello
+    content: hello from the lab
+
+stateOf:
+  - Poll folder (every 10 s)
+
+lanes:
+  - id: event
+    title: Event-driven
+    description: HTTP input - no delay
+  - id: folder
+    title: Folder polling
+    description: picked up within 10 s of being written
+  - id: timer
+    title: Timer (every 5 s)
+    description: GenerateFlowFile, timer-driven
+  - id: cron
+    title: Cron (:00, :15, :30, :45)
+    description: GenerateFlowFile, cron-driven
+
+steps:
+  - title: Timer-driven
+    component: Every 5 seconds
+    text: >
+      Scheduling strategy "Timer driven", run schedule 5 sec: NiFi runs it every 5 seconds counted from when it
+      was started. Look at the Timer lane - one item every 5 seconds.
+  - title: Cron-driven
+    component: 'Cron: every 15 s on the clock'
+    text: >
+      Scheduling strategy "CRON driven" with "0/15 * * * * ?": it runs at :00, :15, :30 and :45 of every minute,
+      no matter when it was started.
+  - title: Event-driven
+    component: Receive request
+    text: '"Send as HTTP event": ListenHTTP receives it immediately - look at the Event-driven lane.'
+  - title: Write a file
+    component: Write to folder
+    text: '"Drop into watched folder" sends the text to NiFi, which writes it as a file into /opt/nifi/lab-inbox.'
+  - title: Poll the folder
+    component: Poll folder (every 10 s)
+    text: >
+      ListFile runs every 10 seconds and lists new files - so the file shows up with a delay of up to 10 s.
+      FetchFile reads it and leaves it in the folder. ListFile stores the newest timestamp it has listed in its
+      processor state (see Processor state), so the file is not listed again - drop a second file and only
+      the new one arrives. Reset clears that state: after the next start, every file in the folder is listed
+      again.
+  - title: Deliver
+    component: Deliver to lab
+    text: >
+      Timer, cron and folder data are created inside NiFi, so "Add lab attributes" adds the attributes the lab
+      needs (they come from the NiFi container's LAB_BACKEND_URL environment variable).

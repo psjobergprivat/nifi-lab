@@ -1,4 +1,4 @@
-import type { DeploymentView, FlowView, LineageView, NifiInfo, ScenarioDetail, ScenarioSummary } from './types';
+import type { DeploymentView, FlowView, LineageView, LookupTable, NifiInfo, ScenarioDetail, ScenarioSummary } from './types';
 
 async function request<T>(method: string, url: string, body?: string, contentType = 'text/plain; charset=UTF-8'): Promise<T> {
   const response = await fetch(url, {
@@ -27,8 +27,14 @@ export const api = {
   stop: (id: string) => request<DeploymentView>('POST', `/api/scenarios/${id}/stop`),
   reset: (id: string) => request<DeploymentView>('POST', `/api/scenarios/${id}/reset`),
   deploy: (id: string) => request<DeploymentView>('POST', `/api/scenarios/${id}/deploy`),
-  sendInput: (id: string, content: string) =>
-    request<{ traceId: string }>('POST', `/api/scenarios/${id}/input`, content),
+  sendInput: (id: string, content: string, target?: string) =>
+    request<{ traceId: string }>(
+      'POST',
+      `/api/scenarios/${id}/input${target ? `?target=${encodeURIComponent(target)}` : ''}`,
+      content,
+    ),
+  updateLookup: (id: string, rows: Record<string, string>[]) =>
+    request<LookupTable>('PUT', `/api/scenarios/${id}/lookup`, JSON.stringify(rows), 'application/json'),
   updateControls: (id: string, values: Record<string, string>) =>
     request<Record<string, string>>('PUT', `/api/scenarios/${id}/controls`, JSON.stringify(values), 'application/json'),
   lineage: (flowFileUuid: string) => request<LineageView>('GET', `/api/lineage/${flowFileUuid}`),

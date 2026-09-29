@@ -25,6 +25,17 @@ public interface LabConfig {
 
     Live live();
 
+    Database database();
+
+    /** The lab's PostgreSQL database (scenario 10), read directly by the backend to show what NiFi wrote. */
+    interface Database {
+        String url();
+
+        String user();
+
+        String password();
+    }
+
     interface Live {
         /** How often NiFi status is polled for scenarios someone is watching (used by {@code StatusPoller}). */
         @WithDefault("1s")

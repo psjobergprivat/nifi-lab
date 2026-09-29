@@ -2,6 +2,7 @@ package org.mylabs.nifilab.nifi;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -13,6 +14,9 @@ import org.mylabs.nifilab.nifi.NifiModel.FlowGraph;
 import org.mylabs.nifilab.nifi.NifiModel.FlowStatus;
 import org.mylabs.nifilab.nifi.NifiModel.GroupRef;
 import org.mylabs.nifilab.nifi.NifiModel.Lineage;
+import org.mylabs.nifilab.nifi.NifiModel.ParameterContextRef;
+import org.mylabs.nifilab.nifi.NifiModel.ParameterValue;
+import org.mylabs.nifilab.nifi.NifiModel.StateEntry;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -21,6 +25,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -126,13 +131,148 @@ public class NifiService {
         return result.get();
     }
 
+    public List<StateEntry> processorState(String processorId) {
+        JsonNode state = call(() -> api.processorState(processorId)).path("componentState");
+        List<StateEntry> entries = new ArrayList<>();
+        for (String scope : List.of("localState", "clusterState")) {
+            for (JsonNode e : state.path(scope).path("state")) {
+                entries.add(new StateEntry(e.path("key").asText(), e.path("value").asText(), e.path("scope").asText(scope)));
+            }
+        }
+        return entries;
+    }
+
+    /** Disables the group's controller services and waits until they are (in-memory caches start empty again). */
+    public void disableControllerServices(String groupId) {
+        // Services can only be disabled once the processors using them have stopped (409 until then).
+        waitUntil(Duration.ofSeconds(30), () -> {
+            try {
+                call(() -> api.activateControllerServices(groupId, stateRequest(groupId, "DISABLED")));
+                return true;
+            } catch (NifiException e) {
+                if (e.status() == 409) {
+                    return false;
+                }
+                throw e;
+            }
+        });
+        waitUntil(Duration.ofSeconds(30), () -> {
+            for (JsonNode cs : call(() -> api.controllerServices(groupId, false)).path("controllerServices")) {
+                if (!"DISABLED".equals(cs.path("component").path("state").asText())) {
+                    return false;
+                }
+            }
+            return true;
+        });
+    }
+
+    // --- parameter contexts ------------------------------------------------------------------------------
+
+    public Optional<ParameterContextRef> findParameterContext(String name) {
+        for (JsonNode pc : call(api::parameterContexts).path("parameterContexts")) {
+            if (name.equals(pc.path("component").path("name").asText())) {
+                return Optional.of(new ParameterContextRef(pc.path("id").asText(), name));
+            }
+        }
+        return Optional.empty();
+    }
+
+    public ParameterContextRef createParameterContext(String name, String description, List<ParameterValue> parameters) {
+        ObjectNode body = JSON.createObjectNode();
+        body.putObject("revision").put("version", 0).put("clientId", clientId);
+        ObjectNode component = body.putObject("component").put("name", name).put("description", description);
+        component.set("parameters", parameterArray(parameters));
+        return new ParameterContextRef(call(() -> api.createParameterContext(body)).path("id").asText(), name);
+    }
+
+    public List<ParameterValue> parameters(String contextId) {
+        List<ParameterValue> result = new ArrayList<>();
+        for (JsonNode p : call(() -> api.parameterContext(contextId)).path("component").path("parameters")) {
+            JsonNode parameter = p.path("parameter");
+            result.add(new ParameterValue(parameter.path("name").asText(), parameter.path("value").asText(null),
+                    parameter.path("sensitive").asBoolean()));
+        }
+        return result;
+    }
+
+    /**
+     * Sets parameter values. NiFi stops the components that use them, applies the change and starts them again;
+     * this waits until that is done.
+     */
+    public void updateParameters(String contextId, List<ParameterValue> parameters) {
+        long version = call(() -> api.parameterContext(contextId)).path("revision").path("version").asLong();
+        ObjectNode body = JSON.createObjectNode().put("id", contextId);
+        body.putObject("revision").put("version", version).put("clientId", clientId);
+        body.putObject("component").put("id", contextId).set("parameters", parameterArray(parameters));
+        JsonNode submitted = call(() -> api.submitParameterUpdate(contextId, body)).path("request");
+        String requestId = submitted.path("requestId").asText();
+        AtomicReference<JsonNode> result = new AtomicReference<>(submitted);
+        try {
+            waitUntil(Duration.ofSeconds(60), () -> {
+                result.set(call(() -> api.parameterUpdate(contextId, requestId)).path("request"));
+                return result.get().path("complete").asBoolean();
+            });
+        } finally {
+            call(() -> api.deleteParameterUpdate(contextId, requestId));
+        }
+        String failure = result.get().path("failureReason").asText(null);
+        if (failure != null && !failure.isBlank()) {
+            throw new NifiException(409, "NiFi could not update the parameters: " + failure, null);
+        }
+    }
+
+    public Optional<String> boundParameterContextId(String groupId) {
+        JsonNode context = call(() -> api.processGroup(groupId)).path("component").path("parameterContext");
+        return context.isMissingNode() || context.isNull() ? Optional.empty() : Optional.of(context.path("id").asText());
+    }
+
+    /** Binds a process group to a parameter context (the group must not have running components using it). */
+    public void bindParameterContext(String groupId, String contextId) {
+        // Right after a stop, processors may still be finishing; NiFi answers 409 until they are done.
+        waitUntil(Duration.ofSeconds(30), () -> {
+            long version = call(() -> api.processGroup(groupId)).path("revision").path("version").asLong();
+            ObjectNode body = JSON.createObjectNode();
+            body.putObject("revision").put("version", version).put("clientId", clientId);
+            body.putObject("component").put("id", groupId).putObject("parameterContext").put("id", contextId);
+            try {
+                call(() -> api.updateProcessGroup(groupId, body));
+                return true;
+            } catch (NifiException e) {
+                if (e.status() == 409) {
+                    return false;
+                }
+                throw e;
+            }
+        });
+    }
+
+    private static ArrayNode parameterArray(List<ParameterValue> parameters) {
+        ArrayNode array = JSON.createArrayNode();
+        for (ParameterValue p : parameters) {
+            array.addObject().putObject("parameter")
+                    .put("name", p.name()).put("value", p.value()).put("sensitive", p.sensitive());
+        }
+        return array;
+    }
+
     public void start(String groupId) {
         call(() -> api.activateControllerServices(groupId, stateRequest(groupId, "ENABLED")));
         call(() -> api.scheduleComponents(groupId, stateRequest(groupId, "RUNNING")));
     }
 
+    /**
+     * Stops the group and waits until every processor has really stopped. NiFi's stop request returns at once,
+     * while processors with running threads keep stopping in the background - and a start request that arrives in
+     * that window silently skips them.
+     */
     public void stop(String groupId) {
         call(() -> api.scheduleComponents(groupId, stateRequest(groupId, "STOPPED")));
+        waitUntil(Duration.ofSeconds(30), () -> {
+            FlowStatus status = status(groupId);
+            return status.activeThreads() == 0
+                    && status.processors().stream().noneMatch(p -> "Running".equalsIgnoreCase(p.runStatus())
+                    || p.activeThreads() > 0);
+        });
     }
 
     /** Drops every FlowFile queued anywhere in the group and waits until NiFi reports it done. */

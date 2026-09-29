@@ -453,6 +453,7 @@ textarea:focus {
   margin: 0.15rem 0 0;
   color: var(--muted);
   font-size: 0.85rem;
+  overflow-wrap: anywhere; /* long URLs and ${expressions} */
 }
 
 .step-title {
@@ -896,4 +897,52 @@ textarea:focus {
 .bulletin .bulletin-explanation {
   color: var(--text);
   font-size: 0.85rem;
+}
+
+/* --- phase 3: lookup table, database view, processor state ------------------------------------- */
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.data-table th,
+.data-table td {
+  text-align: left;
+  padding: 0.25rem 0.4rem;
+  border-top: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.data-table th {
+  color: var(--muted);
+  font-weight: 600;
+  border-top: none;
+}
+
+.data-table.editable td {
+  padding: 0.15rem 0.2rem;
+}
+
+.data-table.editable input {
+  width: 100%;
+  min-width: 48px;
+  font: inherit;
+  padding: 0.2rem 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.state-block + .state-block {
+  margin-top: 0.75rem;
+}
+
+.alert.small {
+  font-size: 0.8rem;
+  padding: 0.5rem 0.7rem;
 }

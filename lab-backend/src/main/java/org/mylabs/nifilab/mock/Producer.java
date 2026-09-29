@@ -72,7 +72,7 @@ public class Producer {
             String content = "{\"event\": \"" + UUID.randomUUID().toString().substring(0, 8)
                     + "\", \"producedAt\": " + System.currentTimeMillis() + "}";
             try {
-                int status = scenarios.post(scenarioId, UUID.randomUUID().toString(), content);
+                int status = scenarios.post(scenarioId, UUID.randomUUID().toString(), content, null);
                 if (status / 100 == 2) {
                     accepted++;
                 } else if (status == 503) {

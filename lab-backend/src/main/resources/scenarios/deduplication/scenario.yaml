@@ -1,0 +1,74 @@
+id: deduplication
+order: 11
+title: Stateful processing and deduplication
+summary: >
+  Events can arrive more than once. NiFi remembers every event id it has seen and routes repeats to a
+  duplicates lane - with a note of when the original arrived. A counter kept in processor state numbers the events.
+learn:
+  - DetectDuplicate remembers keys in a distributed map cache (a controller service pair - server and client)
+  - Duplicates get original.flowfile.description - "why" it was considered a duplicate
+  - UpdateAttribute can keep state between FlowFiles (a counter) in NiFi's state manager
+  - Reset clears both the cache and the state
+
+input:
+  type: text
+  port: 9111
+  path: events
+  contentType: application/json
+  placeholder: '{"eventId": "e-1", "type": "click"}'
+
+samples:
+  - name: Event e-1
+    content: '{"eventId": "e-1", "type": "click"}'
+  - name: Event e-2
+    content: '{"eventId": "e-2", "type": "view"}'
+  - name: Event e-1 again
+    content: '{"eventId": "e-1", "type": "click"}'
+  - name: Event without id
+    content: '{"type": "click"}'
+
+stateOf:
+  - Number events
+
+lanes:
+  - id: unique
+    title: Unique
+    description: first time this eventId was seen
+  - id: duplicates
+    title: Duplicates
+    description: eventId seen before - see original.flowfile.description
+  - id: invalid
+    title: Invalid
+    description: no eventId
+
+steps:
+  - title: Receive
+    component: Receive event
+    text: Each event is one FlowFile.
+  - title: Extract the key
+    component: Extract event id
+    text: The eventId becomes the attribute event.id - the key used to recognise repeats.
+  - title: Check the key
+    component: Has an event id?
+    text: >
+      Without an id there is nothing to compare, so such events go straight to Invalid. (DetectDuplicate would
+      otherwise route them to failure with a 30 second penalty.)
+  - title: Count
+    component: Number events
+    text: >
+      UpdateAttribute with "Store state locally" keeps a counter in NiFi's state manager and writes it to
+      event.number. The Processor state panel shows the counter; it survives a NiFi restart.
+  - title: Detect duplicates
+    component: Detect duplicate
+    text: >
+      DetectDuplicate looks event.id up in the "Dedup cache" (a MapCacheServer and a MapCacheClientService). New:
+      it stores the id with a description and routes to non-duplicate. Seen before (within 5 minutes): routes
+      to duplicate, with the stored description in original.flowfile.description.
+  - title: Try it
+    component: Lane = duplicates
+    text: >
+      Click "Send all samples": e-1 and e-2 are unique, "e-1 again" is a duplicate. Reset disables the cache
+      services (the in-memory cache is emptied) and clears the counter.
+  - title: Deliver
+    component: Deliver to lab
+    text: Nothing is dropped silently - duplicates are kept in their own lane.

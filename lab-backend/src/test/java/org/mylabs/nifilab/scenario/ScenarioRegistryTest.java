@@ -52,6 +52,23 @@ class ScenarioRegistryTest {
                 assertFalse(expected.contains() == null || expected.contains().isBlank(), "expected bulletin needs 'contains'");
             }
 
+            for (String component : s.stateOf()) {
+                assertTrue(names.contains(component), "stateOf refers to unknown component '" + component + "'");
+            }
+            Set<String> parameterNames = new HashSet<>();
+            s.parameterContexts().forEach(c -> c.parameters().forEach(p -> parameterNames.add(p.name())));
+            for (ScenarioDefinition.Control control : s.controls()) {
+                if ("parameter".equals(control.target())) {
+                    assertTrue(parameterNames.contains(control.parameter()),
+                            "control " + control.id() + " refers to undeclared parameter " + control.parameter());
+                }
+                if ("parameter-context".equals(control.target())) {
+                    Set<String> ids = new HashSet<>();
+                    s.parameterContexts().forEach(c -> ids.add(c.id()));
+                    assertEquals(ids, new HashSet<>(control.options()), "control " + control.id() + " options must be the context ids");
+                }
+            }
+
             // Lanes set with a literal value (e.g. "Lane = paid") must be declared in scenario.yaml.
             Set<String> lanes = new HashSet<>();
             s.lanes().forEach(l -> lanes.add(l.id()));

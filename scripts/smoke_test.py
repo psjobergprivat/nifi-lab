@@ -187,8 +187,9 @@ def main():
     check("queues empty and processors stopped", bool(empty))
     sse.close()
 
-    for scenario_check in (check_routing, check_transform, check_split_merge, check_errors_retry,
-                           check_back_pressure, check_provenance):
+    for scenario_check in (check_routing, check_transform, check_split_merge, check_enrichment, check_errors_retry,
+                           check_back_pressure, check_provenance, check_scheduling, check_external_systems,
+                           check_deduplication, check_parameters):
         scenario_check(lab)
     return finish()
 
@@ -196,7 +197,8 @@ def main():
 # --- phase 2 scenarios ---------------------------------------------------------------------------------------
 
 def scenario_api(lab, sid, path, body=None, content_type="text/plain"):
-    status, raw = call("POST" if path != "controls" else "PUT", f"{lab}/api/scenarios/{sid}/{path}", body,
+    method = "PUT" if path.split("?")[0] in ("controls", "lookup") else "POST"
+    status, raw = call(method, f"{lab}/api/scenarios/{sid}/{path}", body,
                        {"Content-Type": content_type} if body is not None else {})
     return status, json.loads(raw) if raw else None
 
@@ -313,6 +315,115 @@ def check_provenance(lab):
         check("lineage reaches back to both batches (2 RECEIVE, FORK, JOIN, SEND)",
               types.count("RECEIVE") == 2 and "FORK" in types and "JOIN" in types and "SEND" in types, str(types))
     finish_scenario(lab, "provenance", sse)
+
+
+# --- phase 3 scenarios ---------------------------------------------------------------------------------------
+
+def check_enrichment(lab):
+    sse, detail = begin(lab, "enrichment")
+    send_samples(lab, "enrichment", detail, ["ACME order", "Unknown customer"])
+    sse.wait("2 items", lambda e: len(sse.items()) >= 2, 20)
+    enriched = sse.items("enriched")
+    check("order enriched with customer from the lookup service",
+          enriched and '"ACME Corporation"' in enriched[0]["content"])
+    check("unknown customer goes to its own lane", len(sse.items("unknown-customer")) == 1)
+    rows = detail["lookup"]["rows"] + [{"customerId": "c-999", "name": "Late Ltd", "tier": "new", "country": "NO"}]
+    status, _ = scenario_api(lab, "enrichment", "lookup", json.dumps(rows), "application/json")
+    check("lookup table can be edited", status == 200)
+    scenario_api(lab, "enrichment", "input", '{"orderId": "o-9", "customerId": "c-999", "amount": 1}')
+    late = sse.wait("re-sent order enriched", lambda e: e["type"] == "item" and e["data"]["lane"] == "enriched"
+                    and "Late Ltd" in e["data"]["content"], 20)
+    check("edited lookup data is used by the next lookup", bool(late))
+    finish_scenario(lab, "enrichment", sse)
+
+
+def check_scheduling(lab):
+    sse, _ = begin(lab, "scheduling")
+    # Files stay in the folder (and are listed again after a reset), so each run uses its own content.
+    run = str(int(time.time()))
+    first, second = f"first file {run}", f"second file {run}"
+    scenario_api(lab, "scheduling", "input?target=event", "as event")
+    scenario_api(lab, "scheduling", "input?target=folder", first)
+    status, _ = scenario_api(lab, "scheduling", "input?target=nope", "x")
+    check("unknown input target is rejected", status == 400)
+    folder = sse.wait("file picked up from the folder", lambda e: e["type"] == "item" and e["data"]["content"] == first, 25)
+    sse.wait("a cron firing", lambda e: e["type"] == "item" and e["data"]["lane"] == "cron", 20)
+    lanes = {i["lane"] for i in sse.items()}
+    check("event, folder, timer and cron lanes all receive data", {"event", "folder", "timer", "cron"} <= lanes, str(lanes))
+    check("polled file carries its content", bool(folder))
+    timers = sorted(i["receivedAt"] for i in sse.items("timer"))
+    gaps = [b - a for a, b in zip(timers, timers[1:])]
+    check("timer fires every ~5 s", gaps and all(4000 <= g <= 6000 for g in gaps), str(gaps))
+    # State is polled once a second, so allow a moment after the pickup.
+    state = sse.wait("ListFile state", lambda e: e["type"] == "state" and e["data"]
+                     and any(en["key"] == "listing.timestamp" for en in e["data"][0]["entries"]), 5)
+    check("ListFile's listing timestamp is visible as processor state", bool(state))
+    # A second file: only the new one is listed, thanks to that state.
+    before = len(sse.items("folder"))
+    scenario_api(lab, "scheduling", "input?target=folder", second)
+    sse.wait("second file", lambda e: e["type"] == "item" and e["data"]["content"] == second, 25)
+    time.sleep(11)  # one more listing round
+    contents = [i["content"] for i in sse.items("folder")[before:]]
+    check("already listed files are not listed again", contents == [second], str(contents))
+    finish_scenario(lab, "scheduling", sse)
+
+
+def check_external_systems(lab):
+    sse, detail = begin(lab, "external-systems")
+    send_samples(lab, "external-systems", detail, ["Order", "Two orders"])
+    polled = sse.wait("rows polled back", lambda e: e["type"] == "item" and e["data"]["lane"] == "polled", 30)
+    check("published to Kafka", len(sse.items("published")) == 2)
+    check("consumed from Kafka and stored in PostgreSQL (trace id kept via Kafka headers)",
+          len(sse.items("stored")) == 2 and all(i["traceId"] for i in sse.items("stored")))
+    check("new rows polled by QueryDatabaseTableRecord", bool(polled))
+    table = sse.wait("3 rows in the table", lambda e: e["type"] == "database" and len(e["data"]["rows"]) == 3, 15)
+    check("backend sees the 3 rows in PostgreSQL", bool(table))
+    state = sse.wait("max id in state", lambda e: e["type"] == "state" and e["data"]
+                     and any(en["value"] == "3" for en in e["data"][0]["entries"]), 15)
+    check("poller remembers the highest id (3) in processor state", bool(state))
+    finish_scenario(lab, "external-systems", sse)
+
+
+def check_deduplication(lab):
+    sse, detail = begin(lab, "deduplication")
+    send_samples(lab, "deduplication", detail)
+    sse.wait("4 items", lambda e: len(sse.items()) >= 4, 20)
+    dup = sse.items("duplicates")
+    check("repeated event id goes to duplicates, with the original's description",
+          len(dup) == 1 and "event #" in dup[0]["attributes"].get("original.flowfile.description", ""),
+          str([(i["lane"], i["content"], i["attributes"].get("original.flowfile.description")) for i in sse.items()]))
+    check("event without id goes to invalid at once", len(sse.items("invalid")) == 1)
+    check("two unique events", len(sse.items("unique")) == 2)
+    finish_scenario(lab, "deduplication", sse)
+    sse, _ = begin(lab, "deduplication")
+    scenario_api(lab, "deduplication", "input", '{"eventId": "e-1"}')
+    again = sse.wait("e-1 after reset", lambda e: e["type"] == "item", 15)
+    check("reset empties the cache and the counter",
+          again and again["data"]["lane"] == "unique" and again["data"]["attributes"].get("event.number") == "1")
+    finish_scenario(lab, "deduplication", sse)
+
+
+def check_parameters(lab):
+    sse, _ = begin(lab, "parameters")
+
+    def route(amount):
+        before = len(sse.items())
+        scenario_api(lab, "parameters", "input", json.dumps({"orderId": "p", "amount": amount}))
+        sse.wait("routed order", lambda e: len(sse.items()) > before, 15)
+        item = sse.items()[-1] if len(sse.items()) > before else None
+        return item and (item["lane"], item["attributes"].get("env.name"), json.loads(item["content"]).get("apiToken"))
+
+    check("dev: 500 is above threshold 100, dev token used", route(500) == ("above-threshold", "development", "dev-****"))
+    status, values = scenario_api(lab, "parameters", "controls", json.dumps({"environment": "prod"}), "application/json")
+    check("switching to prod updates the threshold control", status == 200 and values.get("threshold") == "1000", str(values))
+    check("prod: same order is below threshold 1000, prod token used",
+          route(500) == ("below-threshold", "production", "prod****"))
+    scenario_api(lab, "parameters", "controls", json.dumps({"threshold": "200"}), "application/json")
+    check("changing the parameter changes routing without editing the flow", route(500)[0] == "above-threshold")
+    finish_scenario(lab, "parameters", sse)
+    _, detail = get_json(f"{lab}/api/scenarios/parameters")
+    check("reset restores dev / 100", detail["controlValues"] == {"environment": "dev", "threshold": "100"},
+          str(detail["controlValues"]))
 
 
 def finish():

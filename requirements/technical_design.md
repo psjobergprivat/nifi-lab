@@ -182,3 +182,27 @@ file-based authorizer setup and stays optional.
 - **Headers.** Besides `lab.trace.id` / `lab.scenario` / `lab.sink.url`, input carries `lab.backend.url`, so
   flows can reach the mock service. HTTP header names are sent in lower case, because ListenHTTP's
   `lab\..*` pattern is case-sensitive.
+
+## Implementation notes (Phase 3)
+- **Infrastructure.** Compose adds Kafka 3.9 (KRaft, single node) and PostgreSQL 16 (trust authentication, lab
+  only). `nifi/Dockerfile` adds the PostgreSQL JDBC driver and an inbox folder to the NiFi image.
+- **Data NiFi creates itself** (timers, ListFile, ConsumeKafka, database polling) does not carry the `lab.*`
+  headers. The NiFi container therefore gets `LAB_BACKEND_URL=http://lab-backend:8080`, which flows read with
+  Expression Language (`${LAB_BACKEND_URL}`). `extra_hosts` maps `lab-backend` to the host, so the same URL works
+  whether the backend runs in compose or on the host.
+- **New `scenario.yaml` sections:**
+  - `input.targets`: alternative send buttons; the choice reaches the flow as the `lab.target` attribute.
+  - `lookup`: an editable table served at `/mock/<id>/lookup/<key>`; RestLookupService treats a 404 as no match.
+  - `database`: a query the backend runs directly over JDBC, plus the SQL that empties the table on reset.
+  - `stateOf`: processors whose state is shown, read from `GET /processors/{id}/state`.
+  - `parameterContexts`: the backend creates missing contexts. Sensitive values are set after every deploy,
+    because flow definitions never contain them.
+  - Controls with `target: parameter` or `target: parameter-context` change NiFi through parameter update
+    requests or by rebinding the process group.
+- **Reset** also disables the group's controller services, which empties in-memory caches such as the dedup cache.
+  It also restores the lookup data, empties the database table and resets the parameter contexts.
+- **Stop waits for processors.** NiFi's stop request returns immediately, while processors with running threads
+  keep stopping. A start request that arrives in that window silently skips them; ConsumeKafka was the visible
+  case. `NifiService.stop` therefore waits until nothing in the group is running.
+- **Input retries during startup.** ListenHTTP needs a moment after a (re)start before it listens, so input to
+  a running scenario is retried for a few seconds.

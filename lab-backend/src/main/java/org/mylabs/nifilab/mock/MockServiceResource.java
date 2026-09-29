@@ -51,7 +51,7 @@ public class MockServiceResource {
     @Consumes(MediaType.WILDCARD)
     @Produces(MediaType.APPLICATION_JSON)
     public Response call(@PathParam("scenarioId") String scenarioId, @RestHeader("lab.trace.id") String traceId,
-                         byte[] body) {
+                         @RestHeader("X-Api-Token") String apiToken, byte[] body) {
         String request = body == null ? "" : new String(body, StandardCharsets.UTF_8);
         int attempt = attempts.computeIfAbsent(scenarioId + "|" + traceId, k -> new AtomicInteger()).incrementAndGet();
         int latency = controls.intValue(scenarioId, "service.latency-ms", 0);
@@ -78,11 +78,24 @@ public class MockServiceResource {
             status = 200;
             outcome = "ok";
         }
+        if (apiToken != null) {
+            outcome += " (token " + mask(apiToken) + ")";
+        }
         hub.publish("service", scenarioId, new Call(traceId, attempt, status, outcome, latency));
-        return Response.status(status)
-                .entity(Map.of("result", outcome, "attempt", attempt, "traceId", String.valueOf(traceId),
-                        "request", request))
-                .build();
+        Map<String, Object> answer = new java.util.LinkedHashMap<>();
+        answer.put("result", outcome);
+        answer.put("attempt", attempt);
+        answer.put("traceId", String.valueOf(traceId));
+        if (apiToken != null) {
+            answer.put("apiToken", mask(apiToken));
+        }
+        answer.put("request", request);
+        return Response.status(status).entity(answer).build();
+    }
+
+    /** Shows enough of a token to tell which one was used, without revealing it. */
+    static String mask(String token) {
+        return token.length() <= 4 ? "****" : token.substring(0, 4) + "****";
     }
 
     void onReset(@Observes ScenarioReset reset) {

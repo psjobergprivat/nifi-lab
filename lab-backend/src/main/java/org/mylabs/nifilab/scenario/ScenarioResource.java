@@ -8,10 +8,12 @@ import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import org.mylabs.nifilab.nifi.NifiModel.FlowEdge;
 import org.mylabs.nifilab.nifi.NifiModel.FlowGraph;
 import org.mylabs.nifilab.nifi.NifiModel.FlowNode;
+import org.mylabs.nifilab.nifi.NifiException;
 import org.mylabs.nifilab.nifi.NifiService;
 
 import java.util.List;
@@ -36,6 +38,12 @@ public class ScenarioResource {
     @Inject
     ControlStore controlStore;
 
+    @Inject
+    ParameterService parameters;
+
+    @Inject
+    LookupStore lookups;
+
     public record ScenarioSummary(String id, int order, String title, String summary, List<String> learn,
                                   DeploymentView deployment) {
     }
@@ -45,6 +53,7 @@ public class ScenarioResource {
                                  List<ScenarioDefinition.Lane> lanes, List<StepView> steps,
                                  List<ScenarioDefinition.Control> controls, Map<String, String> controlValues,
                                  List<ScenarioDefinition.ExpectedBulletin> expectedBulletins,
+                                 ScenarioDefinition.LookupTable lookup, String databaseTitle, List<String> stateOf,
                                  DeploymentView deployment, Map<String, String> links) {
     }
 
@@ -86,7 +95,8 @@ public class ScenarioResource {
                                 : d.component(step.component()).map(n -> links.component(d.groupId(), n)).orElse(null)))
                 .toList();
         return new ScenarioDetail(s.id(), s.order(), s.title(), s.summary(), s.learn(), s.input(), s.samples(),
-                s.lanes(), steps, s.controls(), controlStore.values(id), s.expectedBulletins(), view(d),
+                s.lanes(), steps, s.controls(), controlValues(s, d), s.expectedBulletins(),
+                lookups.table(id).orElse(null), s.database() == null ? null : s.database().title(), s.stateOf(), view(d),
                 Map.of("provenance", links.provenance(), "bulletins", links.bulletins()));
     }
 
@@ -141,17 +151,56 @@ public class ScenarioResource {
     @POST
     @Path("/{id}/input")
     @Consumes(MediaType.TEXT_PLAIN)
-    public InputResult input(@PathParam("id") String id, String content) {
+    public InputResult input(@PathParam("id") String id, @QueryParam("target") String target, String content) {
         scenario(id);
-        return new InputResult(service.sendInput(id, content == null ? "" : content));
+        return new InputResult(service.sendInput(id, content == null ? "" : content, target));
     }
 
+    /**
+     * Changes controls. Controls that act on NiFi (parameters, parameter contexts) are applied to NiFi first, so a
+     * value is only stored once NiFi accepted it.
+     */
     @PUT
     @Path("/{id}/controls")
     @Consumes(MediaType.APPLICATION_JSON)
     public Map<String, String> updateControls(@PathParam("id") String id, Map<String, String> changes) {
+        ScenarioDefinition s = scenario(id);
+        Map<String, String> requested = changes == null ? Map.of() : changes;
+        controlStore.validate(id, requested);
+        boolean touchesNifi = false;
+        for (ScenarioDefinition.Control control : s.controls()) {
+            if (control.targetsNifi() && requested.containsKey(control.id())) {
+                parameters.apply(s, control, requested.get(control.id()));
+                touchesNifi = true;
+            }
+        }
+        Map<String, String> result = controlStore.update(id, requested);
+        if (touchesNifi) {
+            // Switching context changes every parameter-backed value; show what NiFi has now.
+            result = controlStore.update(id, parameters.currentValues(s, service.deployment(id).groupId()));
+        }
+        return result;
+    }
+
+    @PUT
+    @Path("/{id}/lookup")
+    @Consumes(MediaType.APPLICATION_JSON)
+    public ScenarioDefinition.LookupTable updateLookup(@PathParam("id") String id, List<Map<String, String>> rows) {
         scenario(id);
-        return controlStore.update(id, changes == null ? Map.of() : changes);
+        return lookups.replace(id, rows == null ? List.of() : rows);
+    }
+
+    /** Control values, with NiFi-backed ones read from NiFi (they may have been changed in the NiFi UI). */
+    private Map<String, String> controlValues(ScenarioDefinition s, Deployment d) {
+        if (!d.deployed() || s.controls().stream().noneMatch(ScenarioDefinition.Control::targetsNifi)) {
+            return controlStore.values(s.id());
+        }
+        try {
+            Map<String, String> fromNifi = parameters.currentValues(s, d.groupId());
+            return fromNifi.isEmpty() ? controlStore.values(s.id()) : controlStore.update(s.id(), fromNifi);
+        } catch (NifiException e) {
+            return controlStore.values(s.id());
+        }
     }
 
     private ScenarioDefinition scenario(String id) {
