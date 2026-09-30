@@ -258,6 +258,58 @@ textarea:focus {
 
 /* --- catalogue ------------------------------------------------------------------------------------ */
 
+.primer {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 1.5rem;
+}
+
+.primer summary {
+  cursor: pointer;
+  padding: 0.85rem 1.25rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.primer[open] summary {
+  border-bottom: 1px solid var(--border);
+}
+
+.primer-body {
+  padding: 1rem 1.25rem 1.25rem;
+}
+
+.primer-body p {
+  margin-top: 0;
+  max-width: 860px;
+}
+
+.primer-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.primer-columns h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.primer-columns ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.primer-columns li {
+  margin-bottom: 0.4rem;
+  color: var(--muted);
+}
+
+.primer-columns li strong {
+  color: var(--text);
+}
+
 .card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));

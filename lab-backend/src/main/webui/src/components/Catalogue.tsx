@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import type { ScenarioSummary } from '../types';
+import { NifiPrimer } from './NifiPrimer';
 import { StatusBadge } from './StatusBadge';
 
 export function Catalogue() {
@@ -30,6 +31,7 @@ export function Catalogue() {
           NiFi UI to see what happens behind the scenes.
         </p>
       </section>
+      <NifiPrimer />
       {error && <div className="alert error">{error}</div>}
       {!scenarios && !error && <p className="muted">Loading scenarios…</p>}
       <div className="card-grid">
