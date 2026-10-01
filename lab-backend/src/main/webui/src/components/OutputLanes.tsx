@@ -44,13 +44,31 @@ export function OutputLanes({ lanes, items, onTrace, onResend }: Props) {
   );
 }
 
+const NO_TRACE_ID =
+  'NiFi made this FlowFile itself - on a timer, by polling, or by merging several inputs into one - so it does not ' +
+  'belong to a single input you sent. Trace still shows its full lineage.';
+
+const MERGED =
+  'Merged from these inputs. The merged FlowFile keeps only the attributes they share, so the lab found them in ' +
+  'its provenance lineage (the RECEIVE events).';
+
 function ItemCard({ item, onTrace, onResend }: { item: SinkItem } & Pick<Props, 'onTrace' | 'onResend'>) {
   const [open, setOpen] = useState(false);
   const attributes = Object.entries(item.attributes);
   return (
     <div className="item">
       <div className="item-meta">
-        <span className="mono">{item.traceId?.slice(0, 8) ?? 'no trace id'}</span>
+        {item.traceId ? (
+          <span className="mono">{item.traceId.slice(0, 8)}</span>
+        ) : item.traceIds?.length ? (
+          <span className="mono" title={MERGED}>
+            {item.traceIds.map((id) => id.slice(0, 8)).join(' + ')}
+          </span>
+        ) : (
+          <span className="muted small" title={NO_TRACE_ID}>
+            created in NiFi ⓘ
+          </span>
+        )}
         <span className="muted small">{new Date(item.receivedAt).toLocaleTimeString()}</span>
       </div>
       <pre className="item-content">{item.content}</pre>

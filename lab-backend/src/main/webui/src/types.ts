@@ -166,6 +166,8 @@ export interface SinkItem {
   content: string;
   attributes: Record<string, string>;
   receivedAt: number;
+  /** For a FlowFile merged from several inputs: their trace ids, found in its provenance lineage. */
+  traceIds?: string[];
 }
 
 export interface Bulletin {
@@ -175,6 +177,8 @@ export interface Bulletin {
   level: string;
   message: string;
   timestamp: string;
+  /** epoch millis, 0 if unknown */
+  time: number;
 }
 
 export interface NifiInfo {
@@ -237,6 +241,7 @@ export interface LiveEvent {
     | 'status'
     | 'bulletin'
     | 'item'
+    | 'traces'
     | 'input'
     | 'reset'
     | 'deployment'

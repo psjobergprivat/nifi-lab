@@ -196,10 +196,10 @@ def json_reader(f, name="JSON reader"):
                      {"Schema Access Strategy": "infer-schema"})
 
 
-def json_writer(f, name="JSON writer"):
+def json_writer(f, name="JSON writer", props=None):
     return f.service(name, "org.apache.nifi.json.JsonRecordSetWriter",
                      "org.apache.nifi.serialization.RecordSetWriterFactory",
-                     {"Pretty Print JSON": "true", "Output Grouping": "output-array"})
+                     {"Pretty Print JSON": "true", "Output Grouping": "output-array", **(props or {})})
 
 
 def enrichment():
@@ -242,20 +242,33 @@ def scheduling():
     route = f.processor("File or event?", "RouteOnAttribute", {
         "Routing Strategy": "Route to Property name", "to-folder": "${lab.target:equals('folder')}"},
         at=(0, 1), dynamic=["to-folder"])
-    name = f.processor("Name the file", UPDATE, {"filename": "dropped-${now():format('HHmmss')}-${uuid:substring(0,4)}.txt"},
+    # The file name carries the lab trace id, so the lab can still follow the text after it was a file.
+    name = f.processor("Name the file", UPDATE, {"filename": "dropped-${lab.trace.id}.txt"},
                        at=(0, 2), artifact=UPDATE_ATTRIBUTE, dynamic=["filename"])
     put = f.processor("Write to folder", "PutFile", {
         "Directory": "/opt/nifi/lab-inbox", "Conflict Resolution Strategy": "replace"},
         at=(0, 3), auto_terminate=["success", "failure"])
     event = f.set_lane("Lane = event", "event", at=(1, 2))
     # Polling: a timer lists the folder every 10 seconds and picks up new files.
+    # Files older than 10 minutes are ignored (and deleted by the clean-up below), so a Reset re-lists only
+    # recent files.
     listing = f.processor("Poll folder (every 10 s)", "ListFile", {
-        "Input Directory": "/opt/nifi/lab-inbox", "Listing Strategy": "timestamps"}, at=(2, 0), schedule="10 sec")
+        "Input Directory": "/opt/nifi/lab-inbox", "Listing Strategy": "timestamps", "File Filter": "dropped-.*",
+        "Maximum File Age": "10 min"}, at=(2, 0), schedule="10 sec")
     # Files stay in the folder, so ListFile's state (what it has already listed) is what prevents duplicates.
     fetch = f.processor("Fetch file", "FetchFile", {"Completion Strategy": "None"}, at=(2, 1),
                         auto_terminate=["failure", "not.found", "permission.denied"])
     folder_attrs = f.lab_attributes("Add lab attributes (folder)", at=(2, 2))
-    folder = f.set_lane("Lane = folder", "folder", at=(2, 3))
+    trace = f.processor("Trace id from file name", UPDATE, {
+        "lab.trace.id": "${filename:substringAfter('dropped-'):substringBefore('.txt')}"},
+        at=(2, 3), artifact=UPDATE_ATTRIBUTE, dynamic=["lab.trace.id"])
+    # Housekeeping: once a minute, delete files older than 10 minutes.
+    cleanup_list = f.processor("Find old files (every 1 min)", "ListFile", {
+        "Input Directory": "/opt/nifi/lab-inbox", "Listing Strategy": "none", "File Filter": "dropped-.*",
+        "Minimum File Age": "10 min"}, at=(4, 4), schedule="1 min")
+    cleanup = f.processor("Delete old file", "FetchFile", {"Completion Strategy": "Delete File"}, at=(4, 5),
+                          auto_terminate=["success", "failure", "not.found", "permission.denied"])
+    folder = f.set_lane("Lane = folder", "folder", at=(2, 4))
     # Timer-driven and cron-driven: NiFi creates data on a schedule.
     timer = f.processor("Every 5 seconds", "GenerateFlowFile", {
         "Custom Text": "Timer fired at ${now():format('HH:mm:ss')}", "Data Format": "Text"},
@@ -267,14 +280,16 @@ def scheduling():
         at=(4, 0), schedule="0/15 * * * * ?", strategy="CRON_DRIVEN")
     cron_attrs = f.lab_attributes("Add lab attributes (cron)", at=(4, 1))
     cron_lane = f.set_lane("Lane = cron", "cron", at=(4, 2))
-    deliver = f.deliver(at=(2, 4))
+    deliver = f.deliver(at=(2, 5))
     f.connect(receive, route)
     f.connect(route, name, ["to-folder"])
     f.connect(name, put)
     f.connect(route, event, ["unmatched"])
     f.connect(listing, fetch)
     f.connect(fetch, folder_attrs)
-    f.connect(folder_attrs, folder)
+    f.connect(folder_attrs, trace)
+    f.connect(trace, folder)
+    f.connect(cleanup_list, cleanup)
     f.connect(timer, timer_attrs)
     f.connect(timer_attrs, timer_lane)
     f.connect(cron, cron_attrs)
@@ -287,7 +302,8 @@ def scheduling():
 def external_systems():
     f = Flow("external-systems", "Kafka and PostgreSQL")
     reader = json_reader(f)
-    writer = json_writer(f)
+    # How the writer formats timestamps (created_at); the default is epoch milliseconds.
+    writer = json_writer(f, props={"Timestamp Format": "yyyy-MM-dd HH:mm:ss z"})
     kafka = f.service("Kafka connection", "org.apache.nifi.kafka.service.Kafka3ConnectionService",
                       [("org.apache.nifi.kafka.service.api.KafkaConnectionService", "nifi-kafka-service-api-nar")],
                       {"bootstrap.servers": "kafka:9092", "security.protocol": "PLAINTEXT"},
@@ -316,7 +332,9 @@ def external_systems():
     failed = f.set_lane("Lane = failed", "failed", at=(2, 2))
     poll = f.processor("Poll new rows (every 5 s)", "QueryDatabaseTableRecord", {
         "Database Connection Pooling Service": db["identifier"], "Database Type": "PostgreSQL",
-        "Table Name": "orders", "Maximum-value Columns": "id", "Record Writer": writer["identifier"]},
+        "Table Name": "orders", "Maximum-value Columns": "id", "Record Writer": writer["identifier"],
+        # Typed fields: created_at as a timestamp (formatted by the writer), amount as a number
+        "Use Avro Logical Types": "true"},
         at=(3, 0), schedule="5 sec", services=["Database Connection Pooling Service", "Record Writer"])
     poll_attrs = f.lab_attributes("Add lab attributes", at=(3, 1))
     polled = f.set_lane("Lane = polled", "polled", at=(3, 2))

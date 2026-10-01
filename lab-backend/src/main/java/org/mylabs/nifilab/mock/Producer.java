@@ -56,10 +56,24 @@ public class Producer {
             int rate = controls.intValue(scenario.id(), RATE, 0);
             Deployment deployment = scenarios.deployment(scenario.id());
             if (rate <= 0 || !deployment.deployed() || deployment.runState() != Deployment.RunState.RUNNING) {
+                idle(scenario.id());
                 continue;
             }
             produce(scenario.id(), rate);
         }
+    }
+
+    /** Nothing was sent this second: the last-second counts (and the "pushed back" status) drop to zero. */
+    private void idle(String scenarioId) {
+        Stats previous = stats.get(scenarioId);
+        if (previous == null || (previous.rate() == 0 && previous.lastAccepted() == 0
+                && previous.lastRefused() == 0 && previous.lastFailed() == 0)) {
+            return;
+        }
+        Stats updated = new Stats(0, previous.sent(), previous.accepted(), previous.refused(), previous.failed(),
+                0, 0, 0, previous.lastError());
+        stats.put(scenarioId, updated);
+        hub.publish("producer", scenarioId, updated);
     }
 
     private void produce(String scenarioId, int rate) {

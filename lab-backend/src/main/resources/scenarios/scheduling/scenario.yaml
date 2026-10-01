@@ -61,15 +61,27 @@ steps:
     text: '"Send as HTTP event": ListenHTTP receives it immediately - look at the Event-driven lane.'
   - title: Write a file
     component: Write to folder
-    text: '"Drop into watched folder" sends the text to NiFi, which writes it as a file into /opt/nifi/lab-inbox.'
+    text: >
+      "Drop into watched folder" sends the text to NiFi, which writes it as a file into /opt/nifi/lab-inbox. The
+      file is named after the lab's trace id (dropped-<trace id>.txt).
   - title: Poll the folder
     component: Poll folder (every 10 s)
     text: >
       ListFile runs every 10 seconds and lists new files - so the file shows up with a delay of up to 10 s.
       FetchFile reads it and leaves it in the folder. ListFile stores the newest timestamp it has listed in its
       processor state (see Processor state), so the file is not listed again - drop a second file and only
-      the new one arrives. Reset clears that state: after the next start, every file in the folder is listed
-      again.
+      the new one arrives. Reset clears that state: after the next start, every file of the last 10 minutes is
+      listed again (Maximum File Age ignores older ones).
+  - title: Follow the file
+    component: Trace id from file name
+    text: >
+      A file carries no attributes, so the polled FlowFile is new. Its lab.trace.id is read back from the file
+      name, which lets the lab match it to what you sent.
+  - title: Clean up
+    component: Find old files (every 1 min)
+    text: >
+      Housekeeping, a common pattern: once a minute a second ListFile (without state - Listing Strategy "none")
+      finds files older than 10 minutes, and FetchFile with Completion Strategy "Delete File" removes them.
   - title: Deliver
     component: Deliver to lab
     text: >

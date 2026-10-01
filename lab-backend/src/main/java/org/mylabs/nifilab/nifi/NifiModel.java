@@ -36,8 +36,9 @@ public final class NifiModel {
                                    long queuedBytes, int percentUseCount, int percentUseBytes) {
     }
 
+    /** {@code timestamp} is NiFi's text ("18:36:13 UTC"); {@code time} the same moment in epoch millis (0 if unknown). */
     public record Bulletin(long id, String sourceId, String sourceName, String level, String message,
-                           String timestamp) {
+                           String timestamp, long time) {
     }
 
     /** How one FlowFile came to be: provenance events and the order they happened in. */

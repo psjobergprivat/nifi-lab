@@ -67,9 +67,22 @@ function reducer(state: LiveState, action: Action): LiveState {
       const { traceId, content } = event.data as { traceId: string; content: string };
       if (state.inputs.some((i) => i.traceId === traceId)) return state;
       // A fast flow can deliver the result before the "input" event arrives.
-      const deliveredAt = state.items.find((i) => i.traceId === traceId)?.receivedAt;
+      const deliveredAt = state.items.find((i) => i.traceId === traceId || i.traceIds?.includes(traceId))?.receivedAt;
       const input: SentInput = { traceId, content, sentAt: event.timestamp, deliveredAt };
       return { ...state, inputs: [input, ...state.inputs].slice(0, MAX_ITEMS) };
+    }
+    case 'traces': {
+      // A merged output has no single trace id; the backend found its inputs in the provenance lineage.
+      const { flowFileUuid, traceIds } = event.data as { flowFileUuid: string; traceIds: string[] };
+      const merged = state.items.find((i) => i.attributes.uuid === flowFileUuid);
+      const deliveredAt = merged?.receivedAt ?? event.timestamp;
+      return {
+        ...state,
+        items: state.items.map((i) => (i.attributes.uuid === flowFileUuid ? { ...i, traceIds } : i)),
+        inputs: state.inputs.map((i) =>
+          traceIds.includes(i.traceId) && !i.deliveredAt ? { ...i, deliveredAt } : i,
+        ),
+      };
     }
     case 'bulletin': {
       const bulletin = event.data as Bulletin;

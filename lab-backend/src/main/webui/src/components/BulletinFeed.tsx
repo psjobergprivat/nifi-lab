@@ -33,7 +33,9 @@ export function BulletinFeed({ bulletins, expected, bulletinsLink }: Props) {
               return (
                 <li key={b.id} className={`bulletin ${expectation ? 'expected' : b.level.toLowerCase()}`}>
                   <div>
-                    <strong>{b.sourceName}</strong> <span className="muted small">{b.timestamp}</span>
+                    <strong>{b.sourceName}</strong> <span className="muted small" title={b.timestamp}>
+                      {b.time ? new Date(b.time).toLocaleTimeString() : b.timestamp}
+                    </span>
                     {expectation ? (
                       <span className="badge small info">Expected</span>
                     ) : (

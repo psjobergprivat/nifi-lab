@@ -31,6 +31,9 @@ public class SinkResource {
     @Inject
     LiveHub hub;
 
+    @Inject
+    MergedTraceResolver mergedTraces;
+
     public record SinkItem(String traceId, String lane, String content, Map<String, String> attributes,
                            long receivedAt) {
     }
@@ -44,6 +47,9 @@ public class SinkResource {
         SinkItem item = new SinkItem(attributes.get("lab.trace.id"), lane,
                 body == null ? "" : new String(body, StandardCharsets.UTF_8), attributes, System.currentTimeMillis());
         hub.publish("item", scenarioId, item);
+        if (item.traceId() == null && attributes.containsKey("merge.count") && attributes.containsKey("uuid")) {
+            mergedTraces.resolveLater(scenarioId, attributes.get("uuid"));
+        }
     }
 
     static Map<String, String> decodeAttributes(String encoded) {

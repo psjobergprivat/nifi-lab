@@ -109,7 +109,7 @@
           "version": "2.12.0"
         },
         "properties": {
-          "filename": "dropped-${now():format('HHmmss')}-${uuid:substring(0,4)}.txt"
+          "filename": "dropped-${lab.trace.id}.txt"
         },
         "propertyDescriptors": {
           "filename": {
@@ -238,7 +238,9 @@
         },
         "properties": {
           "Input Directory": "/opt/nifi/lab-inbox",
-          "Listing Strategy": "timestamps"
+          "Listing Strategy": "timestamps",
+          "File Filter": "dropped-.*",
+          "Maximum File Age": "10 min"
         },
         "propertyDescriptors": {},
         "style": {},
@@ -360,12 +362,136 @@
         "groupIdentifier": "593d4c4e-7107-5ca3-9c7f-cd9b309530b3"
       },
       {
+        "identifier": "570391fa-6c72-57fc-b4a5-b3a2c1e0f145",
+        "name": "Trace id from file name",
+        "comments": "",
+        "position": {
+          "x": 900.0,
+          "y": 600.0
+        },
+        "type": "org.apache.nifi.processors.attributes.UpdateAttribute",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "nifi-update-attribute-nar",
+          "version": "2.12.0"
+        },
+        "properties": {
+          "lab.trace.id": "${filename:substringAfter('dropped-'):substringBefore('.txt')}"
+        },
+        "propertyDescriptors": {
+          "lab.trace.id": {
+            "name": "lab.trace.id",
+            "displayName": "lab.trace.id",
+            "identifiesControllerService": false,
+            "sensitive": false,
+            "dynamic": true
+          }
+        },
+        "style": {},
+        "schedulingPeriod": "0 sec",
+        "schedulingStrategy": "TIMER_DRIVEN",
+        "executionNode": "ALL",
+        "penaltyDuration": "30 sec",
+        "yieldDuration": "1 sec",
+        "bulletinLevel": "WARN",
+        "runDurationMillis": 0,
+        "concurrentlySchedulableTaskCount": 1,
+        "autoTerminatedRelationships": [],
+        "scheduledState": "ENABLED",
+        "retryCount": 10,
+        "retriedRelationships": [],
+        "backoffMechanism": "PENALIZE_FLOWFILE",
+        "maxBackoffPeriod": "10 mins",
+        "componentType": "PROCESSOR",
+        "groupIdentifier": "593d4c4e-7107-5ca3-9c7f-cd9b309530b3"
+      },
+      {
+        "identifier": "5f9c4dce-4408-561d-a8f2-a7147b6a9ae2",
+        "name": "Find old files (every 1 min)",
+        "comments": "",
+        "position": {
+          "x": 1800.0,
+          "y": 800.0
+        },
+        "type": "org.apache.nifi.processors.standard.ListFile",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "nifi-standard-nar",
+          "version": "2.12.0"
+        },
+        "properties": {
+          "Input Directory": "/opt/nifi/lab-inbox",
+          "Listing Strategy": "none",
+          "File Filter": "dropped-.*",
+          "Minimum File Age": "10 min"
+        },
+        "propertyDescriptors": {},
+        "style": {},
+        "schedulingPeriod": "1 min",
+        "schedulingStrategy": "TIMER_DRIVEN",
+        "executionNode": "ALL",
+        "penaltyDuration": "30 sec",
+        "yieldDuration": "1 sec",
+        "bulletinLevel": "WARN",
+        "runDurationMillis": 0,
+        "concurrentlySchedulableTaskCount": 1,
+        "autoTerminatedRelationships": [],
+        "scheduledState": "ENABLED",
+        "retryCount": 10,
+        "retriedRelationships": [],
+        "backoffMechanism": "PENALIZE_FLOWFILE",
+        "maxBackoffPeriod": "10 mins",
+        "componentType": "PROCESSOR",
+        "groupIdentifier": "593d4c4e-7107-5ca3-9c7f-cd9b309530b3"
+      },
+      {
+        "identifier": "f5e7c7c4-63fb-521a-bcc3-be1b8c358f75",
+        "name": "Delete old file",
+        "comments": "",
+        "position": {
+          "x": 1800.0,
+          "y": 1000.0
+        },
+        "type": "org.apache.nifi.processors.standard.FetchFile",
+        "bundle": {
+          "group": "org.apache.nifi",
+          "artifact": "nifi-standard-nar",
+          "version": "2.12.0"
+        },
+        "properties": {
+          "Completion Strategy": "Delete File"
+        },
+        "propertyDescriptors": {},
+        "style": {},
+        "schedulingPeriod": "0 sec",
+        "schedulingStrategy": "TIMER_DRIVEN",
+        "executionNode": "ALL",
+        "penaltyDuration": "30 sec",
+        "yieldDuration": "1 sec",
+        "bulletinLevel": "WARN",
+        "runDurationMillis": 0,
+        "concurrentlySchedulableTaskCount": 1,
+        "autoTerminatedRelationships": [
+          "success",
+          "failure",
+          "not.found",
+          "permission.denied"
+        ],
+        "scheduledState": "ENABLED",
+        "retryCount": 10,
+        "retriedRelationships": [],
+        "backoffMechanism": "PENALIZE_FLOWFILE",
+        "maxBackoffPeriod": "10 mins",
+        "componentType": "PROCESSOR",
+        "groupIdentifier": "593d4c4e-7107-5ca3-9c7f-cd9b309530b3"
+      },
+      {
         "identifier": "f03c070e-bdf1-5a7c-82ac-442777f0209e",
         "name": "Lane = folder",
         "comments": "",
         "position": {
           "x": 900.0,
-          "y": 600.0
+          "y": 800.0
         },
         "type": "org.apache.nifi.processors.attributes.UpdateAttribute",
         "bundle": {
@@ -691,7 +817,7 @@
         "comments": "",
         "position": {
           "x": 900.0,
-          "y": 800.0
+          "y": 1000.0
         },
         "type": "org.apache.nifi.processors.standard.AttributesToJSON",
         "bundle": {
@@ -730,7 +856,7 @@
         "comments": "",
         "position": {
           "x": 900.0,
-          "y": 1000.0
+          "y": 1200.0
         },
         "type": "org.apache.nifi.processors.standard.InvokeHTTP",
         "bundle": {
@@ -1005,7 +1131,7 @@
         "groupIdentifier": "593d4c4e-7107-5ca3-9c7f-cd9b309530b3"
       },
       {
-        "identifier": "eb2c7f47-c219-5cee-a84e-a9a742340c22",
+        "identifier": "c14c4e0e-66fb-5a95-b8ea-e12c72f12c91",
         "name": "",
         "comments": "",
         "source": {
@@ -1015,10 +1141,74 @@
           "name": "Add lab attributes (folder)"
         },
         "destination": {
+          "id": "570391fa-6c72-57fc-b4a5-b3a2c1e0f145",
+          "type": "PROCESSOR",
+          "groupId": "593d4c4e-7107-5ca3-9c7f-cd9b309530b3",
+          "name": "Trace id from file name"
+        },
+        "labelIndex": 1,
+        "zIndex": 0,
+        "selectedRelationships": [
+          "success"
+        ],
+        "backPressureObjectThreshold": 10000,
+        "backPressureDataSizeThreshold": "1 GB",
+        "flowFileExpiration": "0 sec",
+        "prioritizers": [],
+        "bends": [],
+        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+        "partitioningAttribute": "",
+        "loadBalanceCompression": "DO_NOT_COMPRESS",
+        "componentType": "CONNECTION",
+        "groupIdentifier": "593d4c4e-7107-5ca3-9c7f-cd9b309530b3"
+      },
+      {
+        "identifier": "edd5ed03-160a-57f2-b609-663fef688d59",
+        "name": "",
+        "comments": "",
+        "source": {
+          "id": "570391fa-6c72-57fc-b4a5-b3a2c1e0f145",
+          "type": "PROCESSOR",
+          "groupId": "593d4c4e-7107-5ca3-9c7f-cd9b309530b3",
+          "name": "Trace id from file name"
+        },
+        "destination": {
           "id": "f03c070e-bdf1-5a7c-82ac-442777f0209e",
           "type": "PROCESSOR",
           "groupId": "593d4c4e-7107-5ca3-9c7f-cd9b309530b3",
           "name": "Lane = folder"
+        },
+        "labelIndex": 1,
+        "zIndex": 0,
+        "selectedRelationships": [
+          "success"
+        ],
+        "backPressureObjectThreshold": 10000,
+        "backPressureDataSizeThreshold": "1 GB",
+        "flowFileExpiration": "0 sec",
+        "prioritizers": [],
+        "bends": [],
+        "loadBalanceStrategy": "DO_NOT_LOAD_BALANCE",
+        "partitioningAttribute": "",
+        "loadBalanceCompression": "DO_NOT_COMPRESS",
+        "componentType": "CONNECTION",
+        "groupIdentifier": "593d4c4e-7107-5ca3-9c7f-cd9b309530b3"
+      },
+      {
+        "identifier": "0242bd0b-aad0-5b08-a9cd-5cee3baa128b",
+        "name": "",
+        "comments": "",
+        "source": {
+          "id": "5f9c4dce-4408-561d-a8f2-a7147b6a9ae2",
+          "type": "PROCESSOR",
+          "groupId": "593d4c4e-7107-5ca3-9c7f-cd9b309530b3",
+          "name": "Find old files (every 1 min)"
+        },
+        "destination": {
+          "id": "f5e7c7c4-63fb-521a-bcc3-be1b8c358f75",
+          "type": "PROCESSOR",
+          "groupId": "593d4c4e-7107-5ca3-9c7f-cd9b309530b3",
+          "name": "Delete old file"
         },
         "labelIndex": 1,
         "zIndex": 0,

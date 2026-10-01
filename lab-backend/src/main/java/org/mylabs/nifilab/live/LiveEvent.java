@@ -3,7 +3,7 @@ package org.mylabs.nifilab.live;
 /**
  * An event pushed to the browser over SSE.
  *
- * @param type one of {@code status, bulletin, item, input, reset, deployment, nifi, heartbeat}
+ * @param type one of {@code status, bulletin, item, traces, input, reset, deployment, nifi, heartbeat, ...}
  */
 public record LiveEvent(String type, String scenarioId, long timestamp, Object data) {
 

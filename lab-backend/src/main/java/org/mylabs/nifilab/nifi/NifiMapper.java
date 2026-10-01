@@ -14,12 +14,22 @@ import org.mylabs.nifilab.nifi.NifiModel.LineageEvent;
 import org.mylabs.nifilab.nifi.NifiModel.LineageLink;
 import org.mylabs.nifilab.nifi.NifiModel.ProcessorStatus;
 
+import java.time.DateTimeException;
+import java.time.Instant;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -134,10 +144,39 @@ public final class NifiMapper {
                     b.path("sourceName").asText(),
                     b.path("level").asText(),
                     b.path("message").asText(),
-                    e.path("timestamp").asText(b.path("timestamp").asText())));
+                    e.path("timestamp").asText(b.path("timestamp").asText()),
+                    bulletinTime(e, b, Instant.now())));
         }
         return bulletins;
     }
+
+    /**
+     * When a bulletin was posted, in epoch millis (0 if unknown), so the UI can show it in local time like everything
+     * else. Uses timestampIso when NiFi sends it; otherwise the time of day ("18:36:13 UTC") is taken as the most
+     * recent such moment before {@code now}.
+     */
+    static long bulletinTime(JsonNode entity, JsonNode bulletin, Instant now) {
+        String iso = entity.path("timestampIso").asText(bulletin.path("timestampIso").asText(""));
+        if (!iso.isEmpty()) {
+            try {
+                return OffsetDateTime.parse(iso).toInstant().toEpochMilli();
+            } catch (DateTimeParseException ignored) {
+                // fall back to the time of day
+            }
+        }
+        String text = entity.path("timestamp").asText(bulletin.path("timestamp").asText(""));
+        try {
+            TemporalAccessor parsed = BULLETIN_TIME.parse(text);
+            ZoneId zone = ZoneId.from(parsed);
+            ZonedDateTime today = LocalTime.from(parsed).atDate(now.atZone(zone).toLocalDate()).atZone(zone);
+            ZonedDateTime time = today.toInstant().isAfter(now.plusSeconds(60)) ? today.minusDays(1) : today;
+            return time.toInstant().toEpochMilli();
+        } catch (DateTimeException e) {
+            return 0;
+        }
+    }
+
+    private static final DateTimeFormatter BULLETIN_TIME = DateTimeFormatter.ofPattern("HH:mm:ss z", Locale.ROOT);
 
     /**
      * Maps a finished lineage request. NiFi's graph alternates EVENT and FLOWFILE nodes; the lab shows events only,
@@ -183,6 +222,18 @@ public final class NifiMapper {
                 .sorted(Comparator.comparingLong(LineageEvent::millis).thenComparing(e -> Long.parseLong(e.id())))
                 .toList();
         return new Lineage(flowFileUuid, ordered, List.copyOf(links));
+    }
+
+    /** The lab.trace.ids of the inputs a FlowFile came from: what its RECEIVE events recorded, oldest first. */
+    public static List<String> receivedTraceIds(Lineage lineage) {
+        return lineage.events().stream()
+                .filter(e -> "RECEIVE".equals(e.eventType()))
+                .sorted(Comparator.comparingLong(LineageEvent::millis))
+                .flatMap(e -> e.attributeChanges().stream())
+                .filter(c -> "lab.trace.id".equals(c.name()) && c.value() != null && !c.value().isBlank())
+                .map(AttributeChange::value)
+                .distinct()
+                .toList();
     }
 
     /**

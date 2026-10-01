@@ -98,6 +98,7 @@ export function FlowDiagram({ flow, status }: { flow: FlowView; status: FlowStat
         nodeTypes={nodeTypes}
         fitView
         fitViewOptions={{ padding: 0.15 }}
+        minZoom={0.2} // the default (0.5) is too large for wide flows to fit
         nodesConnectable={false}
         elementsSelectable={false}
         proOptions={{ hideAttribution: true }}

@@ -63,10 +63,10 @@ controls:
 lanes:
   - id: above-threshold
     title: Above threshold
-    description: amount > #{threshold}
+    description: 'amount > #{threshold}'
   - id: below-threshold
     title: Below threshold
-    description: amount <= #{threshold}
+    description: 'amount <= #{threshold}'
 
 steps:
   - title: Receive

@@ -353,7 +353,8 @@
           "Database Type": "PostgreSQL",
           "Table Name": "orders",
           "Maximum-value Columns": "id",
-          "Record Writer": "9d7323e4-b3e5-519e-ae10-b3f1886fb28b"
+          "Record Writer": "9d7323e4-b3e5-519e-ae10-b3f1886fb28b",
+          "Use Avro Logical Types": "true"
         },
         "propertyDescriptors": {
           "Database Connection Pooling Service": {
@@ -1066,7 +1067,8 @@
         },
         "properties": {
           "Pretty Print JSON": "true",
-          "Output Grouping": "output-array"
+          "Output Grouping": "output-array",
+          "Timestamp Format": "yyyy-MM-dd HH:mm:ss z"
         },
         "propertyDescriptors": {},
         "controllerServiceApis": [

@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.mylabs.nifilab.nifi.NifiModel.FlowGraph;
 import org.mylabs.nifilab.nifi.NifiModel.FlowStatus;
 
+import java.time.Instant;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -81,6 +82,42 @@ class NifiMapperTest {
         assertEquals(1, bulletins.size());
         assertEquals("ERROR", bulletins.get(0).level());
         assertEquals(4, bulletins.get(0).id());
+    }
+
+    @Test
+    void receivedTraceIdsComeFromReceiveEventsOldestFirst() {
+        NifiModel.Lineage lineage = new NifiModel.Lineage("m", List.of(
+                event("3", "JOIN", 30, List.of()),
+                event("2", "RECEIVE", 20, List.of(new NifiModel.AttributeChange("lab.trace.id", "t-2", null))),
+                event("1", "RECEIVE", 10, List.of(new NifiModel.AttributeChange("lab.trace.id", "t-1", null),
+                        new NifiModel.AttributeChange("filename", "x", null))),
+                event("4", "ATTRIBUTES_MODIFIED", 40, List.of(new NifiModel.AttributeChange("lab.trace.id", "t-9", "t-1")))),
+                List.of());
+
+        assertEquals(List.of("t-1", "t-2"), NifiMapper.receivedTraceIds(lineage));
+    }
+
+    private static NifiModel.LineageEvent event(String id, String type, long millis,
+                                                List<NifiModel.AttributeChange> changes) {
+        return new NifiModel.LineageEvent(id, type, "c", "c", "c", millis, "f" + id, null, changes);
+    }
+
+    @Test
+    void bulletinTimeIsTheLatestMatchingTimeOfDay() throws Exception {
+        Instant now = Instant.parse("2026-10-01T18:40:00Z");
+        JsonNode earlierToday = json.readTree("""
+                {"timestamp": "18:36:13 UTC", "bulletin": {}}""");
+        JsonNode yesterday = json.readTree("""
+                {"timestamp": "23:59:00 UTC", "bulletin": {}}""");
+        JsonNode iso = json.readTree("""
+                {"timestamp": "18:36:13 UTC", "timestampIso": "2026-09-30T10:00:00.000Z", "bulletin": {}}""");
+
+        assertEquals(Instant.parse("2026-10-01T18:36:13Z").toEpochMilli(),
+                NifiMapper.bulletinTime(earlierToday, earlierToday.path("bulletin"), now));
+        assertEquals(Instant.parse("2026-09-30T23:59:00Z").toEpochMilli(),
+                NifiMapper.bulletinTime(yesterday, yesterday.path("bulletin"), now));
+        assertEquals(Instant.parse("2026-09-30T10:00:00Z").toEpochMilli(),
+                NifiMapper.bulletinTime(iso, iso.path("bulletin"), now));
     }
 
     @Test
